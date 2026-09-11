@@ -304,7 +304,25 @@ it is over rather than what the shake moved under it.
 
 ## 6. Core subsystems
 
-All in-house. `core/` is about 1,000 lines.
+All in-house.
+
+### Math
+
+| | |
+|---|---|
+| `Scalar` / `Fixed` | the pluggable `Real`: 32-bit float, or Q16.16 |
+| `Vector` / `Rect` | 2/3/4-D vectors, AABB |
+| `Random` | deterministic LCG or entropy-seeded MT, switchable |
+| `Noise` | value noise, fbm, ridged |
+| `Ease` | lerp, smoothstep, the easing curves, frame-rate independent `damp` |
+
+`Random` deserves a note. Before it existed, **fifteen** places in this project
+had written their own linear congruential generator — including the camera's
+quake and the particle emitter. A generator is a *value* here rather than a
+global: hold your own, and two systems can neither perturb each other's stream
+nor be made irreproducible by the order they happen to run in. That is exactly
+why the camera's shake keeps a private one — a cosmetic effect must never shift
+the stream a level generator is reading.
 
 ### Memory
 
@@ -329,6 +347,28 @@ A bitfield of independently toggleable views (`Colliders`, `CameraFocus`,
 `ParallaxBands`, `Grid`, `Wireframe`, `Hud`, `Velocities`, `Perf`) plus curated
 presets, pause and single-step. Kept as plain state rather than baked into the
 renderer, which is why every backend gets the same visualisation for free.
+
+### Simulation and AI
+
+| | |
+|---|---|
+| `Entity` + `Collision` | AABB bodies, axis-separated, swept hulls |
+| `SpatialGrid` | uniform-grid broad phase, so collision need not be O(n²) |
+| `Verlet` | position-based dynamics: ropes, bridges, cloth |
+| `PathFinder` | A* over a `TileMap`, with the heuristic as the knob |
+| `Steering` | flocking, plus seek/flee/arrive |
+| `Emitter` | particles, as ordinary entities |
+| `TileMap` | a grid of indices, drawn with view culling |
+| `Animator` | sprite-sheet clips and the clock that drives them |
+
+Two of these carry a lesson beyond their API. `SpatialGrid` exists because
+`collideWithGroup` tests every pair: fine at thirty bodies, quietly ruinous at
+three hundred. And `Animator`'s clock derives its frame count by **division**
+rather than the obvious `while (timer >= hold) timer -= hold;` — repeated
+subtraction accumulates a rounding error per iteration, and a compiler is free
+to constant-fold a loop of that shape at higher precision than the runtime path,
+at which point the same code advances a different number of frames depending on
+whether it was folded. One division is one rounding.
 
 ### Assets
 
@@ -386,7 +426,7 @@ Stated plainly, because each is a choice rather than an omission:
 
 - **No draw batching.** Each primitive is its own submission.
 - **No rotation or restitution in collision.** AABB, axis-separated. It is what
-  makes the platformer feel right.
+  makes the platformer feel right; `Verlet` covers the soft-body cases instead.
 - **No runtime shader compilation on Vulkan.** SPIR-V is pre-built into headers;
   `supportsShaders()` says so.
 - **No scene graph transforms.** Positions are world-space; the camera projects.

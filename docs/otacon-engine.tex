@@ -87,7 +87,8 @@ Key & Values & Meaning \\
 \section{Source layout}
 \begin{lstlisting}
 src/engine/          # ---- Otacon engine (static lib 'otacon') ----
-  core/math/         #   Fixed (Q16.16), Scalar (float|fixed), Vector, Rect
+  core/math/         #   Fixed (Q16.16), Scalar (float|fixed), Vector, Rect,
+                     #   Random, Noise, Ease
   core/memory/       #   Tracked heap + Arena + Pool allocators
   core/time/         #   Clock + TimeManager (variable/fixed timestep)
   core/debug/        #   DebugRuntime (runtime view switching)
@@ -95,7 +96,9 @@ src/engine/          # ---- Otacon engine (static lib 'otacon') ----
   audio/             #   IAudio seam, software Mixer, CoreAudio / null backend
   platform/          #   IWindow seam; glfw/ and sdl2/ backends
   render/            #   IRenderer seam; gl_modern/ gl_legacy/ vulkan/
-  scene/             #   Entity, Node, Scene, Camera, Collision, Emitter
+  scene/             #   Entity, Node, Scene, Camera, Collision, Emitter,
+                     #   TileMap, Animator, Verlet, PathFinder, Steering,
+                     #   SpatialGrid
   App.cpp IGame.hpp  #   Engine runtime + the game contract
 
 src/game/            # ---- games on the engine (canabalt, dino, flappy) ----
@@ -265,6 +268,23 @@ are intentionally \emph{not} overridden, so third-party allocations stay separat
 to \code{maxElapsed = 1/20\,s}); the \emph{fixed} policy banks real time and emits
 whole fixed steps for frame-rate-independent determinism. It also drives the time
 scale used by the slow-mo / fast-forward debug control.
+
+\section{Simulation, AI and procedural helpers}
+Beyond \code{Entity} and the AABB solver, the scene layer carries the subsystems
+a 2D game reaches for: \code{SpatialGrid} (a uniform-grid broad phase, so
+collision need not be $O(n^2)$), \code{Verlet} (position-based dynamics for
+ropes, bridges and cloth), \code{PathFinder} (A* over a \code{TileMap}, with the
+heuristic exposed as the knob it really is), \code{Steering} (flocking plus
+seek/flee/arrive), \code{TileMap} and \code{Animator}. \code{core/math} adds
+\code{Random}, \code{Noise} and \code{Ease}.
+
+\code{Random} is worth singling out. Before it existed, fifteen separate places
+in this project had each written their own linear congruential generator, two of
+them inside the engine. A generator here is a value rather than a global, so two
+systems can neither perturb each other's stream nor be made irreproducible by
+the order they happen to run in --- which is why the camera's quake keeps a
+private one, a cosmetic shake having no business shifting the stream a level
+generator reads.
 
 \section{Debug runtime}
 \code{DebugRuntime} holds independently toggleable views (colliders, camera focus,
