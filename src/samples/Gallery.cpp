@@ -11,7 +11,19 @@ using otacon::Color;
 namespace samples {
 
 namespace {
-constexpr float kBarH = 13.f;                       // title bar height
+// The header band the gallery paints. The engine's App::drawHud writes into the
+// same band afterwards -- game_->render() runs before drawHud(), so this fill
+// lands behind its text rather than over it.
+//
+//   y=3    engine line   OTACON  <backend>  SCALAR-...  FPS  STEP  VIEW
+//   y=11   status line   NN/NN <sample>  |  <the sample's live state>
+//   y=19   gallery line  <what this sample shows>              F1 list  F2 help
+//
+// The sample number and name are deliberately NOT repeated here: the engine's
+// status line already carries them, and every debug preset includes Hud, so
+// that line is present whenever this chrome is.
+constexpr float kBandH   = 30.f;                    // header band height
+constexpr float kBlurbY  = 19.f;                    // the gallery's own line
 constexpr Color kInk  {0.92f, 0.94f, 1.00f, 1.f};
 constexpr Color kDim  {0.58f, 0.62f, 0.74f, 1.f};
 constexpr Color kAccent{0.45f, 0.82f, 1.00f, 1.f};
@@ -112,18 +124,24 @@ const char* Gallery::statusLine() const {
 // Drawn by the gallery rather than each sample, so all fifteen look like one set.
 void Gallery::drawChrome(otacon::IRenderer& r) const {
     const float W = float(ctx_.logicalW);
-    r.fillRect(0, 0, W, kBarH, Color{0.03f, 0.04f, 0.06f, 0.82f});
-    r.drawLine(0, kBarH, W, kBarH, Color{0.20f, 0.30f, 0.42f, 0.9f}, 1.f);
+    // One band behind all three lines, so the header reads as a single unit
+    // instead of two overlapping ones.
+    r.fillRect(0, 0, W, kBandH, Color{0.03f, 0.04f, 0.06f, 0.86f});
+    r.drawLine(0, kBandH, W, kBandH, Color{0.20f, 0.30f, 0.42f, 0.9f}, 1.f);
 
-    char left[128];
-    std::snprintf(left, sizeof left, "%02d/%02d  %s", index_ + 1, sampleCount(), sampleInfo(index_).name);
-    r.drawText(left, 4, 4, 1.f, kInk);
-
+    // Right-aligned key hint.
     const char* hint = "F1 list  F2 help  [ ]";
-    r.drawText(hint, W - r.textWidth(hint, 1.f) - 4, 4, 1.f, kDim);
+    const float hintW = r.textWidth(hint, 1.f);
+    r.drawText(hint, W - hintW - 4, kBlurbY, 1.f, kDim);
 
-    // The blurb sits just under the bar: one line on what the sample teaches.
-    r.drawText(sampleInfo(index_).blurb, 4, kBarH + 4, 1.f, Color{0.62f, 0.70f, 0.85f, 0.85f});
+    // The blurb, truncated so it can never run under the hint. drawText has no
+    // clipping, so the string has to be cut to fit.
+    const float room = W - hintW - 14;
+    char blurb[160];
+    std::snprintf(blurb, sizeof blurb, "%s", sampleInfo(index_).blurb);
+    for (std::size_t n = std::strlen(blurb); n > 1 && r.textWidth(blurb, 1.f) > room; --n)
+        blurb[n - 1] = '\0';
+    r.drawText(blurb, 4, kBlurbY, 1.f, Color{0.62f, 0.70f, 0.85f, 0.90f});
 }
 
 void Gallery::drawPicker(otacon::IRenderer& r) const {

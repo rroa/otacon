@@ -26,10 +26,12 @@ struct InputFrame;
 
 namespace samples {
 
-// The gallery draws a title bar and a blurb line across the top of every
-// sample. Samples lay their content out below this so nothing hides under the
-// chrome; it is one constant rather than fifteen guesses.
-namespace layout { inline constexpr float kTop = 26.f; }
+// The top of the screen is a shared header band: the engine's App draws its two
+// HUD lines into it (y=3 and y=11) and the gallery adds a third (y=19), so a
+// sample's content must start below all of them. One constant rather than
+// fifteen guesses -- and the reason it is 34 and not 26 is that the gallery used
+// to draw its own title over the engine's first line.
+namespace layout { inline constexpr float kTop = 34.f; }
 
 struct SampleContext {
     otacon::IRenderer* renderer = nullptr;

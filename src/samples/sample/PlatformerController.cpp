@@ -183,6 +183,10 @@ private:
             level_.push_back(std::move(e));
         };
         const float floorY = H_ - 130;
+        // Bound the level. Without these the player can run off the side into
+        // empty space, miss the catch floor and loop through a reset forever.
+        add(-8, layout::kTop, 8, H_);
+        add(W_, layout::kTop, 8, H_);
         add(0, floorY, 210, 20);
         add(250, floorY, 120, 20);            // a gap that needs coyote time
         add(410, floorY - 34, 110, 18);
