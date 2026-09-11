@@ -200,6 +200,51 @@ with `tools/build-docs.sh` (needs `tectonic`).
 `reference/` is not tracked — it holds the upstream sources the ports were read
 from, and is fetched separately.
 
+## Assets & licensing
+
+### Canabalt
+
+This is a port written to study the original. The source release explicitly
+permits that use; it does not permit redistribution, which is why **this
+repository is private**.
+
+* **Upstream:** [github.com/ericjohnson/canabalt-ios](https://github.com/ericjohnson/canabalt-ios)
+  — the Canabalt source code release of December 29, 2010.
+* *Canabalt* is a registered trademark of **Semi Secret Software, LLC**, and is
+  copyright © 2009–2010 Semi Secret Software, LLC.
+* The music — *"RUN!"*, *"Daring Escape"* and *"Mach Runner"* — is copyright
+  © 2009–2010 **Danny Baranowsky**.
+* The `flixel-ios` engine in that release is MIT-licensed. **Everything else —
+  all other source and all game data — remains Semi Secret's**, under terms that
+  say you *"cannot redistribute our source code"* or data from the original game,
+  but *"can use our source code for personal entertainment or education
+  purposes."* The full text is `GAME_LICENSE.TXT` in the upstream release.
+
+What that means here, concretely:
+
+| | |
+|---|---|
+| `src/engine/`, `src/samples/`, `src/game/canabalt/*.cpp` | Written for this project. A port and an original engine — ours. |
+| `src/game/canabalt/assets/` | The **original game's** art, audio and data. Semi Secret's and Danny Baranowsky's, included so the port runs. Not ours to redistribute. |
+| `reference/` | The upstream release itself, read while porting. Untracked — see `.gitignore` — and never built. |
+
+Because the assets are tracked, **this repository cannot simply be flipped to
+public**: git keeps history, so they would have to be removed from every commit
+first. Publishing the code alone is fine — the engine and all fifteen samples
+are self-contained, since the samples generate every texture they use in code.
+
+### The other two games
+
+* **Dino** — `assets/images/sprite.png` is the offline-runner sprite sheet from
+  the Chromium source tree, which is BSD-3-Clause.
+* **Flappy Bird** — the sprites and sounds come from
+  [github.com/samuelcust/flappy-bird-assets](https://github.com/samuelcust/flappy-bird-assets)
+  (see `assets/sound/convert.sh`). *Flappy Bird* is © Dong Nguyen / .GEARS;
+  treat this art as third-party too. The game code itself is original.
+
+None of the above is legal advice — it is a record of where each file came from
+and what its stated terms are, so the question can be answered without digging.
+
 ## Status
 
 Everything above runs. All three graphics backends (GL modern, GL legacy,
