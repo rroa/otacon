@@ -1,18 +1,27 @@
-// TileMap.hpp — a grid of tile indices, shared by the samples that need one.
-//
-// Three samples want the same thing from different angles: Tilemap World draws
-// one, Procedural Dungeon generates one, Pathfinding searches one. Rather than
-// three private copies, they share this — which also makes the point that a
-// tilemap is just an array plus an agreement about what the numbers mean.
-//
-// Tile 0 is always empty. `firstSolid` is the index at which tiles start
-// blocking movement, so "which tiles are walls" stays data, not code.
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/TileMap.hpp - a grid of tile indices
+
+A tilemap is an array plus an agreement about what the numbers mean. Tile 0 is
+always empty, and `firstSolid` is the index at which tiles begin to block
+movement, so "which tiles are walls" stays data rather than code.
+
+draw() renders only the window that intersects the clip rect and returns how
+many tiles it submitted. Culling to the view is the entire reason a tilemap is
+drawn this way rather than as one sprite per cell, and returning the count
+matters because IRenderer::drawCalls() reports the *previous* frame's total and
+so cannot be differenced around a call to measure one.
+
+===========================================================================
+*/
 #pragma once
 #include "render/IRenderer.hpp"
 #include <cstdint>
 #include <vector>
 
-namespace samples {
+namespace otacon {
 
 class TileMap {
 public:
@@ -47,7 +56,7 @@ public:
     // Returns the number of tiles actually submitted, which is the number worth
     // watching: IRenderer::drawCalls() reports the *previous* frame's total, so
     // it cannot be differenced around a call to measure one.
-    int draw(otacon::IRenderer& r, otacon::TextureHandle tileset, int tileCount,
+    int draw(IRenderer& r, TextureHandle tileset, int tileCount,
              float scrollX, float scrollY, float dest,
              float clipX, float clipY, float clipW, float clipH) const {
         if (!tileset || dest <= 0) return 0;
@@ -75,4 +84,4 @@ private:
     int w_ = 0, h_ = 0;
 };
 
-} // namespace samples
+} // namespace otacon

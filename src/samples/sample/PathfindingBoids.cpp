@@ -15,7 +15,7 @@
 // side effect. Zero a weight and watch which part of "flocking" it was.
 #include "Sample.hpp"
 #include "common/Rng.hpp"
-#include "common/TileMap.hpp"
+#include "scene/TileMap.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -341,7 +341,7 @@ private:
     static constexpr float kSepScale = 900.f, kCohScale = 1.1f;
     static constexpr float kMaxSpeed = 128.f, kMinSpeed = 52.f;
 
-    TileMap map_;
+    otacon::TileMap map_;
     std::vector<Node> nodes_;
     std::vector<int>  path_;
     std::vector<Boid> flock_;

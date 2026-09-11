@@ -17,7 +17,7 @@
 #include "Sample.hpp"
 #include "common/Art.hpp"
 #include "common/Rng.hpp"
-#include "common/TileMap.hpp"
+#include "scene/TileMap.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -254,7 +254,7 @@ private:
     // 5. Any void touching a floor becomes wall; a corridor meeting a room
     //    becomes a door. Both are purely local rules over the finished array.
     void walls() {
-        TileMap out = map_;
+        otacon::TileMap out = map_;
         for (int y = 0; y < kH; ++y)
             for (int x = 0; x < kW; ++x) {
                 if (map_.at(x, y) != kVoid) continue;
@@ -320,7 +320,7 @@ private:
 
     otacon::IRenderer* r_ = nullptr;
     otacon::TextureHandle tileset_ = 0;
-    TileMap map_;
+    otacon::TileMap map_;
     std::vector<Room> rooms_;
     std::vector<Edge> tree_, loops_;
     Rng rng_{0x0D06};

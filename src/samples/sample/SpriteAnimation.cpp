@@ -8,6 +8,7 @@
 // separate.
 #include "Sample.hpp"
 #include "common/Art.hpp"
+#include "scene/Animator.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -18,14 +19,11 @@ namespace {
 
 using otacon::Color;
 
-// A frame-based clip: a list of frame indices plus how long each is held.
-struct Clip {
-    const char* name;
-    const int*  frames;
-    int         count;
-    float       fps;
-    bool        loop;
-};
+// The clips are otacon::Clip: a list of frame indices plus a rate. They used to
+// be a private struct here with a hand-rolled timer beside it, which is exactly
+// the duplication this sample exists to argue against -- a frame clock is an
+// engine facility, not something each game reinvents.
+using otacon::Clip;
 
 const int kRunFrames[]  = {0, 1, 2, 3};
 const int kIdleFrames[] = {4};
@@ -53,26 +51,29 @@ public:
     }
     void shutdown() override { if (tex_ && r_) { r_->destroyTexture(tex_); tex_ = 0; } }
 
-    void enter() override { clip_ = 0; cursor_ = 0; timer_ = 0; manual_ = false; }
+    void enter() override {
+        clip_ = 0; manual_ = false; paused_ = false;
+        anim_.play(&kClips[clip_]);
+    }
 
     void handleInput(const otacon::InputFrame& in) override {
-        if (in.selectSlot >= 1 && in.selectSlot <= kClipCount) clip_ = in.selectSlot - 1;
-        if (in.isPressed(otacon::Action::Aux6)) manual_ = !manual_;         // E
-        if (manual_ && in.isPressed(otacon::Action::Jump)) step(1);         // hand-crank
+        if (in.selectSlot >= 1 && in.selectSlot <= kClipCount) {
+            clip_ = in.selectSlot - 1;
+            anim_.play(&kClips[clip_]);
+        }
+        if (in.isPressed(otacon::Action::Aux6)) manual_ = !manual_;              // E
+        if (manual_ && in.isPressed(otacon::Action::Jump)) anim_.step(1);        // hand-crank
         if (!manual_ && in.isPressed(otacon::Action::Jump)) paused_ = !paused_;
     }
 
     void update(otacon::Real dt) override {
         if (manual_ || paused_) return;
-        const Clip& c = kClips[clip_];
-        timer_ += otacon::toFloat(dt);
-        const float hold = 1.f / (c.fps > 0 ? c.fps : 1.f);
-        while (timer_ >= hold) { timer_ -= hold; step(1); }
+        anim_.update(dt);          // the engine owns the clock
     }
 
     void render(otacon::IRenderer& r, const otacon::DebugRuntime&) override {
         const Clip& c = kClips[clip_];
-        const int frame = c.frames[cursor_ % c.count];
+        const int frame = anim_.frame();
         const float top = layout::kTop + 10;
 
         // --- the live sprite, big -------------------------------------------
@@ -107,7 +108,7 @@ public:
         float ly = sty + stripH + 26;
         r.drawText("CLIP", stx, ly, 1.f, Color{0.55f, 0.80f, 1.f, 1.f}); ly += 10;
         for (int i = 0; i < c.count; ++i) {
-            const bool on = (i == cursor_ % c.count);
+            const bool on = (i == anim_.cursor());
             char cell[8];
             std::snprintf(cell, sizeof cell, "%d", c.frames[i]);
             const float cx = stx + i * 14.f;
@@ -120,7 +121,7 @@ public:
         r.drawText("HOLD PER FRAME", barX, barY - 12, 1.f, Color{0.55f, 0.80f, 1.f, 1.f});
         r.fillRect(barX, barY, barW, 6, Color{0.12f, 0.14f, 0.20f, 1.f});
         const float hold = 1.f / (c.fps > 0 ? c.fps : 1.f);
-        const float fill = manual_ ? 0.f : (hold > 0 ? timer_ / hold : 0.f);
+        const float fill = manual_ ? 0.f : anim_.phase();
         r.fillRect(barX, barY, barW * (fill < 0 ? 0 : (fill > 1 ? 1 : fill)), 6,
                    Color{0.35f, 0.85f, 0.55f, 1.f});
         char clock[96];
@@ -142,7 +143,7 @@ public:
     const char* status() const override {
         const Clip& c = kClips[clip_];
         std::snprintf(buf_, sizeof buf_, "%s  frame %d/%d  %s",
-                      c.name, cursor_ % c.count + 1, c.count,
+                      c.name, anim_.cursor() + 1, c.count,
                       manual_ ? "MANUAL" : (paused_ ? "PAUSED" : "playing"));
         return buf_;
     }
@@ -151,7 +152,6 @@ public:
     }
 
 private:
-    void step(int n) { cursor_ = (cursor_ + n) % kClips[clip_].count; }
     void drawFrame(otacon::IRenderer& r, int f, float x, float y, float w, float h, Color tint) const {
         const float u0 = float(f) / frameCount_, u1 = float(f + 1) / frameCount_;
         r.drawImage(tex_, x, y, w, h, u0, 0.f, u1, 1.f, tint);
@@ -159,9 +159,10 @@ private:
 
     otacon::IRenderer* r_ = nullptr;
     otacon::TextureHandle tex_ = 0;
-    float W_ = 640, H_ = 400, timer_ = 0;
+    otacon::Animator anim_;
+    float W_ = 640, H_ = 400;
     int frameW_ = 12, frameH_ = 16, frameCount_ = 6;
-    int clip_ = 0, cursor_ = 0;
+    int clip_ = 0;
     bool manual_ = false, paused_ = false;
     mutable char buf_[96]{};
 };

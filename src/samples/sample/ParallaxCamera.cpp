@@ -63,7 +63,9 @@ public:
         if (autoScroll_) scroll_ += 90.f * otacon::toFloat(dt);
         if (scroll_ < 0) scroll_ += kWorldW;
         if (scroll_ > kWorldW) scroll_ -= kWorldW;
-        cam_.scroll = {otacon::R(scroll_), otacon::R(0)};
+        // Camera::scroll is an offset ADDED to world positions (that is how a
+        // follow camera stores it), so scrolling right is a negative scroll.
+        cam_.scroll = {otacon::R(-scroll_), otacon::R(0)};
     }
 
     void render(otacon::IRenderer& r, const otacon::DebugRuntime& dbg) override {
@@ -126,11 +128,14 @@ private:
         const float scale = h / 190.f;      // the bands are authored for ~190 world units
         for (int i = 0; i < kLayerCount; ++i) {
             const Layer& L = kLayers[i];
-            const float f = forceOne ? 1.f : factor_[i];
+            const float f = forceOne ? 1.f : factor_[i];   // fed to the camera as scrollFactor
             const bool sel = (i == selected_) && !forceOne;
             for (const Prop& p : props_[i]) {
-                // The one line that makes parallax: world -> screen through the factor.
-                float sx = p.x - scroll_ * f;
+                // The projection is the engine's, not ours. Camera::screenPoint
+                // is world - scroll * scrollFactor, which is the whole of
+                // parallax; a sample that re-derived it here would be
+                // demonstrating its own arithmetic instead of the engine's.
+                float sx = cam_.screenPoint({otacon::R(p.x), otacon::R(0)}, {f, 0.f}).x;
                 // Wrap so a band tiles forever without needing more props.
                 sx = std::fmod(std::fmod(sx, kWorldW) + kWorldW, kWorldW);
                 if (sx > W_ + p.w) sx -= kWorldW;

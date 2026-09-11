@@ -2,7 +2,7 @@
 //
 // This is the sample the shader seam exists for. Four effects, each written
 // twice: once as a GLSL fragment shader compiled through
-// IRenderer::createEffect, and once as a C++ loop writing into a Canvas. The
+// IRenderer::createEffect, and once as a C++ loop writing into a otacon::Canvas. The
 // source of whichever one is running is printed on screen next to the picture.
 //
 // Why both? Because the engine's promise is that every backend draws the same
@@ -17,7 +17,7 @@
 // path takes over. That is deliberate: a playground that goes blank on a typo
 // teaches nothing.
 #include "Sample.hpp"
-#include "common/Canvas.hpp"
+#include "render/Canvas.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -316,7 +316,7 @@ private:
         }
         y += 12;
         r.drawText(gpuNow ? "> running on the GPU (createEffect + useEffect)"
-                          : "> running on the CPU (Canvas + updateTexture)",
+                          : "> running on the CPU (otacon::Canvas + updateTexture)",
                    x, y, 1.f, gpuNow ? Color{0.45f, 0.90f, 0.60f, 1.f} : Color{0.55f, 0.75f, 1.f, 1.f});
         y += 10;
         char px2[96];
@@ -332,7 +332,7 @@ private:
     otacon::IRenderer* r_ = nullptr;
     otacon::TextureHandle white_ = 0;
     otacon::ShaderHandle  effects_[kEffectCount]{};
-    Canvas canvas_;
+    otacon::Canvas canvas_;
     float  W_ = 640, H_ = 400, t_ = 0, param_ = 8.f;
     int    which_ = 0;
     bool   useGpu_ = false, gpuAvailable_ = false, showSource_ = true;

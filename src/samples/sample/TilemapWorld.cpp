@@ -11,7 +11,7 @@
 #include "Sample.hpp"
 #include "common/Art.hpp"
 #include "common/Rng.hpp"
-#include "common/TileMap.hpp"
+#include "scene/TileMap.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -205,7 +205,7 @@ private:
 
     otacon::IRenderer* r_ = nullptr;
     otacon::TextureHandle tileset_ = 0;
-    TileMap map_;
+    otacon::TileMap map_;
     float W_ = 640, H_ = 400;
     float scrollX_ = 0, scrollY_ = 200;
     float lastNx_ = 0, lastNy_ = 0;

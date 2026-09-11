@@ -105,7 +105,8 @@ public:
             camY_ += (ty - camY_) * k;
         } else { camX_ = tx; camY_ = ty; }
 
-        cam_.scroll = {R(camX_ - W_ * 0.5f), R(camY_ - (H_ - layout::kTop) * 0.5f)};
+        // Negated: Camera::scroll is an offset added to world positions.
+        cam_.scroll = {R(-(camX_ - W_ * 0.5f)), R(-(camY_ - (H_ - layout::kTop) * 0.5f))};
 
         if (trailLen_ < kTrail) ++trailLen_;
         trailHead_ = (trailHead_ + 1) % kTrail;
@@ -117,11 +118,18 @@ public:
 
     void render(otacon::IRenderer& r, const otacon::DebugRuntime&) override {
         const float top = layout::kTop;
-        const float ox = camX_ - W_ * 0.5f, oy = camY_ - (H_ - top) * 0.5f;
-        auto sx = [&](float wx) { return wx - ox; };
-        auto sy = [&](float wy) { return wy - oy + top; };
+        // Project through the engine camera rather than re-deriving it. cam_'s
+        // scroll was set in update(); screenPoint applies it with this layer's
+        // scroll factor, which is what every other otacon renderer path does.
+        auto proj = [&](float wx, float wy) {
+            return cam_.screenPoint({otacon::R(wx), otacon::R(wy)}, {1.f, 1.f});
+        };
+        auto sx = [&](float wx) { return proj(wx, 0.f).x; };
+        auto sy = [&](float wy) { return proj(0.f, wy).y + top; };
 
-        // A world grid, so camera motion is legible.
+        // A world grid, so camera motion is legible. The visible world window is
+        // derived from the camera rather than tracked separately.
+        const float ox = camX_ - W_ * 0.5f, oy = camY_ - (H_ - top) * 0.5f;
         for (float gx = std::floor(ox / 80) * 80; gx < ox + W_; gx += 80)
             r.drawLine(sx(gx), top, sx(gx), H_, Color{1, 1, 1, 0.05f}, 1.f);
         for (float gy = std::floor(oy / 80) * 80; gy < oy + H_; gy += 80)

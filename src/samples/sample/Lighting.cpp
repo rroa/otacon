@@ -10,7 +10,7 @@
 // you can see where normals come from rather than being handed a lilac PNG.
 //
 // Second, the same maths runs on both sides of the renderer seam. The CPU path
-// writes pixels into a Canvas and uploads one texture — it works on every
+// writes pixels into a otacon::Canvas and uploads one texture — it works on every
 // backend, including GL legacy, which has no programmable stage at all. The GPU
 // path compiles the equivalent GLSL through IRenderer::createEffect and runs it
 // per fragment. Press E to switch. The arithmetic is the same, so the lighting
@@ -24,7 +24,7 @@
 // support in the seam — the shader just offsets its UV by 0.5.
 #include "Sample.hpp"
 #include "common/Art.hpp"
-#include "common/Canvas.hpp"
+#include "render/Canvas.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -327,7 +327,7 @@ private:
     otacon::Image albedo_, normal_;
     otacon::TextureHandle packedTex_ = 0;
     otacon::ShaderHandle  effect_ = 0;
-    Canvas canvas_;
+    otacon::Canvas canvas_;
     Light  lights_[kLights]{};
     float  W_ = 640, H_ = 400, t_ = 0, ambient_ = 0.12f;
     int    showMap_ = 0;
