@@ -190,11 +190,75 @@ bool collideWithGroup(Entity& obj, const std::vector<Entity*>& group) {
     Real l = obj.pos.x, r = obj.right(), t = obj.pos.y, b = obj.bottom();
     for (Entity* g : group) {
         if (g == &obj || !g->exists || !g->solid) continue;
+        // Layer filtering before the geometry: rejecting on a mask is two ands,
+        // where rejecting on overlap is four compares and a pair of solves.
+        if (!obj.canCollideWith(*g)) continue;
+        // A trigger is detected, never separated. Treating it as solid here is
+        // what turns a pickup into a wall.
+        if (obj.trigger || g->trigger) continue;
         if (r < g->pos.x || l > g->right() || b < g->pos.y || t > g->bottom()) continue;
         c |= solveX(obj, *g);
         c |= solveY(obj, *g);
     }
     return c;
+}
+
+/*
+=============================================================================
+
+                             OVERLAP QUERIES
+
+=============================================================================
+*/
+
+/*
+==================
+overlap
+
+Plain AABB intersection plus the layer filter. Deliberately does NOT consult
+`trigger`: that flag decides whether the solver separates a pair, and a query
+has no response to suppress.
+==================
+*/
+bool overlap(const Entity& a, const Entity& b) {
+    if (!a.exists || !b.exists) return false;
+    if (!a.canCollideWith(b)) return false;
+    return !(a.right() < b.pos.x || a.pos.x > b.right() ||
+             a.bottom() < b.pos.y || a.pos.y > b.bottom());
+}
+
+/*
+==================
+overlapGroup
+==================
+*/
+void overlapGroup(const Entity& obj, const std::vector<Entity*>& group,
+                  std::vector<Entity*>& out) {
+    out.clear();
+    for (Entity* g : group) {
+        if (!g || g == &obj) continue;
+        if (overlap(obj, *g)) out.push_back(g);
+    }
+}
+
+/*
+==================
+queryRect
+
+The entity-less form, for a question that comes from somewhere other than a
+body: a blast radius, a selection marquee, a spawn-placement check.
+==================
+*/
+void queryRect(const Rect& area, const std::vector<Entity*>& group,
+               std::vector<Entity*>& out, std::uint32_t mask) {
+    out.clear();
+    for (Entity* g : group) {
+        if (!g || !g->exists) continue;
+        if ((mask & g->layer) == 0u) continue;
+        if (area.right() < g->pos.x || area.x > g->right() ||
+            area.bottom() < g->pos.y || area.y > g->bottom()) continue;
+        out.push_back(g);
+    }
 }
 
 } // namespace otacon

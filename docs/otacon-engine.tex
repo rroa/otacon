@@ -87,16 +87,18 @@ Key & Values & Meaning \\
 \section{Source layout}
 \begin{lstlisting}
 src/engine/          # ---- Otacon engine (static lib 'otacon') ----
+  core/            #   Timer (scheduling), Tween, Events (Signal + EventBus)
   core/math/         #   Fixed (Q16.16), Scalar (float|fixed), Vector, Rect,
                      #   Random, Noise, Ease
   core/memory/       #   Tracked heap + Arena + Pool allocators
   core/time/         #   Clock + TimeManager (variable/fixed timestep)
   core/debug/        #   DebugRuntime (runtime view switching)
-  asset/             #   In-house PNG decode/encode + CAF audio decode
+  asset/             #   In-house PNG decode/encode + CAF decode, Resources, SaveData
   audio/             #   IAudio seam, software Mixer, CoreAudio / null backend
   platform/          #   IWindow seam; glfw/ and sdl2/ backends
-  render/            #   IRenderer seam; gl_modern/ gl_legacy/ vulkan/
-  scene/             #   Entity, Node, Scene, Camera, Collision, Raycast, Emitter,
+  render/            #   IRenderer seam; gl_modern/ gl_legacy/ vulkan/; Canvas, Atlas
+  scene/             #   Entity, Node, Scene, Camera, Collision, Shapes, Raycast,
+                     #   StateMachine, Emitter,
                      #   TileMap, Animator, Verlet, PathFinder, Steering,
                      #   SpatialGrid
   App.cpp IGame.hpp  #   Engine runtime + the game contract

@@ -315,6 +315,9 @@ All in-house.
 | `Random` | deterministic LCG or entropy-seeded MT, switchable |
 | `Noise` | value noise, fbm, ridged |
 | `Ease` | lerp, smoothstep, the easing curves, frame-rate independent `damp` |
+| `Timer` | deferred and repeating callbacks, cancellable by handle |
+| `Tween` | animating a value over time through an easing curve |
+| `Events` | `Signal<Args...>` and a type-keyed `EventBus` |
 
 `Random` deserves a note. Before it existed, **fifteen** places in this project
 had written their own linear congruential generator — including the camera's
@@ -352,8 +355,10 @@ renderer, which is why every backend gets the same visualisation for free.
 
 | | |
 |---|---|
-| `Entity` + `Collision` | AABB bodies, axis-separated, swept hulls |
+| `Entity` + `Collision` | AABB bodies, axis-separated, swept hulls, layers/masks, triggers |
+| `Shapes` | circles and capsules: overlap queries and penetration manifolds |
 | `Raycast` | ray vs AABB (slab), ray vs tilemap (DDA), line of sight |
+| `StateMachine` | a finite state machine for entities and game flow |
 | `SpatialGrid` | uniform-grid broad phase, so collision need not be O(n²) |
 | `Verlet` | position-based dynamics: ropes, bridges, cloth |
 | `PathFinder` | A* over a `TileMap`, with the heuristic as the knob |
@@ -377,6 +382,36 @@ subtraction accumulates a rounding error per iteration, and a compiler is free
 to constant-fold a loop of that shape at higher precision than the runtime path,
 at which point the same code advances a different number of frames depending on
 whether it was folded. One division is one rounding.
+
+### Collision, in layers
+
+`Entity` carries a `layer` (what it *is*, one bit) and a `mask` (what it
+*collides with*). Two bodies interact only when **each one's mask admits the
+other's layer** — both directions, so a filter can never be one-sided, which is
+the bug that lets a bullet pass through a wall from one side only. A `trigger`
+is detected but never separated, which is the difference between a pickup and a
+wall.
+
+`Collision` also separates response from query. `collideWithGroup` pushes things
+apart; `overlap`, `overlapGroup` and `queryRect` only answer. A blast radius, an
+aggro check and a "what is standing here" question all want the second kind, and
+routing them through the solver is how a trigger accidentally becomes solid.
+
+### Presentation and resources
+
+| | |
+|---|---|
+| `Atlas` | named regions in one texture — the largest 2D draw-call win available |
+| `Resources` | load-once cache for textures and sounds, released in one call |
+| `SaveData` | key/value persistence; atomic writes, total reads |
+| `Canvas` | a CPU pixel buffer uploaded as one texture |
+
+`SaveData` writes to a temporary and renames over the original, so a crash
+mid-save leaves the previous file intact rather than a truncated one — losing a
+save to a power cut is forgivable, corrupting it is not. Every read returns the
+caller's default on a missing file, a missing key or an unparseable value,
+because a save file is user-writable data and must never be trusted to be
+well-formed.
 
 ### Assets
 

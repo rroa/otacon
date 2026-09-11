@@ -20,6 +20,13 @@
 #include "scene/Steering.hpp"
 #include "scene/SpatialGrid.hpp"
 #include "scene/Raycast.hpp"
+#include "scene/Shapes.hpp"
+#include "scene/StateMachine.hpp"
+#include "core/Timer.hpp"
+#include "core/Tween.hpp"
+#include "core/Events.hpp"
+#include "render/Atlas.hpp"
+#include "asset/SaveData.hpp"
 #include "scene/Animator.hpp"
 #include <algorithm>
 #include <cmath>
@@ -451,6 +458,258 @@ static void testRaycast() {
     check(ray::lineOfSight({8.f, 40.f}, {80.f, 40.f}, map, 16.f), "ray: clear ground does not");
 }
 
+
+// Query shapes: the answer must be right at the boundary and inside, which is
+// where the naive implementations go wrong.
+static void testShapes() {
+    check(shape::overlaps(Circle{{0, 0}, 5.f}, Circle{{8, 0}, 4.f}), "shape: circles overlap");
+    check(!shape::overlaps(Circle{{0, 0}, 5.f}, Circle{{20, 0}, 4.f}), "shape: distant circles do not");
+
+    const Rect box(R(0), R(0), R(10), R(10));
+    check(shape::overlaps(Circle{{12, 5}, 3.f}, box), "shape: circle reaches a box face");
+    check(!shape::overlaps(Circle{{20, 5}, 3.f}, box), "shape: circle short of a box does not");
+    // A circle near a corner must NOT overlap just because it is within the
+    // box's x and y spans -- the classic AABB-instead-of-distance bug.
+    check(!shape::overlaps(Circle{{13, 13}, 3.f}, box), "shape: corner case uses distance, not spans");
+    check(shape::overlaps(Circle{{5, 5}, 1.f}, box), "shape: circle inside a box overlaps");
+
+    const Capsule cap{{0, 0}, {20, 0}, 2.f};
+    check(shape::overlaps(cap, Circle{{10, 1.f}, 1.5f}), "shape: capsule hits a circle beside it");
+    check(!shape::overlaps(cap, Circle{{10, 9.f}, 1.5f}), "shape: capsule misses one above it");
+    // Past the end cap: clamping the projection to the segment is what makes
+    // this a capsule rather than an infinite cylinder.
+    check(!shape::overlaps(cap, Circle{{30, 0}, 2.f}), "shape: capsule ends at its endpoint");
+    check(shape::overlaps(cap, Capsule{{10, -5}, {10, 5}, 1.f}), "shape: crossing capsules overlap");
+
+    // A manifold has to separate the pair exactly.
+    Manifold m = shape::resolve(Circle{{0, 0}, 5.f}, Circle{{8, 0}, 4.f});
+    check(m.hit && std::fabs(m.depth - 1.f) < 0.01f, "shape: manifold reports penetration depth");
+    check(m.normal.x > 0.9f, "shape: manifold normal points at the second shape");
+    // Concentric circles still need a way out.
+    check(shape::resolve(Circle{{0, 0}, 5.f}, Circle{{0, 0}, 5.f}).hit,
+          "shape: coincident circles still produce a normal");
+}
+
+// Layers must filter symmetrically: a one-sided mask is the bug that makes a
+// bullet pass through a wall from one direction only.
+static void testCollisionLayers() {
+    Entity a, b;
+    a.pos = {R(0), R(0)};  a.size = {R(10), R(10)};
+    b.pos = {R(5), R(5)};  b.size = {R(10), R(10)};
+
+    check(overlap(a, b), "layers: default masks collide");
+
+    a.layer = 1u << 0; a.mask = 1u << 1;
+    b.layer = 1u << 1; b.mask = 1u << 0;
+    check(overlap(a, b), "layers: matching masks collide");
+
+    b.mask = 1u << 2;                       // b no longer admits a
+    check(!overlap(a, b), "layers: a one-sided mask blocks BOTH directions");
+    check(!overlap(b, a), "layers: filtering is symmetric");
+
+    // A trigger must be detected but never separated.
+    Entity solidGround, pickup, player;
+    solidGround.pos = {R(0), R(20)}; solidGround.size = {R(100), R(10)}; solidGround.fixed = true;
+    pickup.pos = {R(10), R(0)}; pickup.size = {R(8), R(8)}; pickup.trigger = true; pickup.fixed = true;
+    player.pos = {R(10), R(0)}; player.size = {R(8), R(8)};
+    solidGround.refreshHulls(); pickup.refreshHulls(); player.refreshHulls();
+
+    const float before = toFloat(player.pos.x);
+    std::vector<Entity*> grp = {&pickup};
+    collideWithGroup(player, grp);
+    check(std::fabs(toFloat(player.pos.x) - before) < 0.001f, "layers: a trigger never pushes");
+    check(overlap(player, pickup), "layers: but the overlap is still reported");
+
+    std::vector<Entity*> all = {&pickup, &solidGround};
+    std::vector<Entity*> hits;
+    overlapGroup(player, all, hits);
+    check(hits.size() == 1 && hits[0] == &pickup, "layers: overlapGroup finds only what overlaps");
+}
+
+static void testTimers() {
+    Timers t;
+    int fired = 0, ticks = 0;
+    t.after(1.0f, [&] { ++fired; });
+    const TimerHandle rep = t.every(0.5f, [&] { ++ticks; });
+
+    for (int i = 0; i < 60; ++i) t.update(R(1.f / 60.f));   // one second
+    check(fired == 1, "timer: after() fires once");
+    check(ticks == 2, "timer: every() fires on its interval");
+
+    for (int i = 0; i < 60; ++i) t.update(R(1.f / 60.f));
+    check(fired == 1, "timer: after() does not fire twice");
+    t.cancel(rep);
+    const int atCancel = ticks;
+    for (int i = 0; i < 60; ++i) t.update(R(1.f / 60.f));
+    check(ticks == atCancel, "timer: cancel stops a repeater");
+
+    // A callback that schedules more timers must not corrupt the list.
+    Timers nested;
+    int inner = 0;
+    nested.after(0.1f, [&] { nested.after(0.1f, [&] { ++inner; }); });
+    for (int i = 0; i < 30; ++i) nested.update(R(1.f / 60.f));
+    check(inner == 1, "timer: a callback may schedule more timers");
+
+    // An interval shorter than dt must catch up, not silently drop firings.
+    Timers fast;
+    int many = 0;
+    fast.every(0.01f, [&] { ++many; });
+    fast.update(R(0.1f));
+    check(many >= 5, "timer: a short interval catches up within one tick");
+}
+
+static void testTweens() {
+    Tweens tw;
+    float v = 0.f;
+    bool done = false;
+    tw.to(&v, 100.f, 1.0f, ease::smoothstep, [&] { done = true; });
+
+    for (int i = 0; i < 30; ++i) tw.update(R(1.f / 60.f));   // half way
+    check(v > 5.f && v < 95.f, "tween: value moves while running");
+    check(!done, "tween: completion waits for the end");
+
+    for (int i = 0; i < 31; ++i) tw.update(R(1.f / 60.f));
+    check(std::fabs(v - 100.f) < 0.01f, "tween: lands exactly on the target");
+    check(done, "tween: fires its completion");
+    check(tw.count() == 0, "tween: retires when finished");
+
+    // Cancelling by target is what an object must do when it dies, or the tween
+    // writes through a dangling pointer.
+    float x = 0.f;
+    tw.to(&x, 50.f, 1.0f);
+    tw.cancelTarget(&x);
+    for (int i = 0; i < 60; ++i) tw.update(R(1.f / 60.f));
+    check(std::fabs(x) < 0.01f, "tween: cancelTarget stops writes");
+
+    float y = 0.f;
+    const TweenHandle h = tw.to(&y, 10.f, 1.0f);
+    tw.cancel(h, true);                                      // settle
+    check(std::fabs(y - 10.f) < 0.01f, "tween: cancel with settle jumps to the end");
+}
+
+static void testEvents() {
+    Signal<int> sig;
+    int total = 0, calls = 0;
+    const Subscription a = sig.connect([&](int v) { total += v; ++calls; });
+    sig.connect([&](int v) { total += v * 2; ++calls; });
+    sig.emit(5);
+    check(total == 15 && calls == 2, "signal: every listener receives the emit");
+
+    sig.disconnect(a);
+    total = 0; calls = 0;
+    sig.emit(5);
+    check(total == 10 && calls == 1, "signal: disconnect removes one listener");
+
+    // A listener disconnecting itself mid-dispatch must not corrupt iteration.
+    Signal<> self;
+    int ran = 0;
+    Subscription id = 0;
+    id = self.connect([&] { ++ran; self.disconnect(id); });
+    self.emit();
+    self.emit();
+    check(ran == 1, "signal: a listener may disconnect itself during dispatch");
+
+    struct Died { int id; };
+    struct Scored { int points; };
+    EventBus bus;
+    int deaths = 0, points = 0;
+    bus.subscribe<Died>([&](const Died&) { ++deaths; });
+    bus.subscribe<Scored>([&](const Scored& e) { points += e.points; });
+    bus.post(Died{1});
+    bus.post(Scored{10});
+    bus.post(Scored{5});
+    check(deaths == 1 && points == 15, "eventbus: routes by event type");
+    struct Unheard { int x; };
+    bus.post(Unheard{1});
+    check(bus.listenerCount<Unheard>() == 0, "eventbus: an unheard event is a no-op");
+}
+
+static void testStateMachine() {
+    enum class S { Idle, Run, Dead };
+    StateMachine<S> fsm;
+    int enters = 0, exits = 0, updates = 0;
+
+    fsm.add(S::Idle, [&] { ++enters; }, [&](Real, float) { ++updates; }, [&] { ++exits; });
+    fsm.add(S::Run,  [&] { ++enters; }, nullptr, [&] { ++exits; });
+    fsm.add(S::Dead, [&] { ++enters; });
+
+    fsm.start(S::Idle);
+    check(fsm.is(S::Idle) && enters == 1 && exits == 0, "fsm: start enters without exiting");
+
+    fsm.update(R(0.1f));
+    check(updates == 1, "fsm: the active state updates");
+    check(fsm.timeInState() > 0.f, "fsm: time in state accumulates");
+
+    fsm.change(S::Run);
+    fsm.update(R(0.1f));
+    check(fsm.is(S::Run) && exits == 1 && enters == 2, "fsm: change exits then enters");
+    check(updates == 1, "fsm: the state that left does not tick again");
+    check(fsm.timeInState() < 0.2f, "fsm: time in state resets on entry");
+
+    // Transition requested from inside update() must not tick the old state again.
+    StateMachine<S> inner;
+    int idleTicks = 0;
+    inner.add(S::Idle, nullptr, [&](Real, float) { ++idleTicks; inner.change(S::Dead); });
+    inner.add(S::Dead, nullptr, [&](Real, float) {});
+    inner.start(S::Idle);
+    inner.update(R(0.1f));
+    inner.update(R(0.1f));
+    check(idleTicks == 1 && inner.is(S::Dead), "fsm: a transition from update() takes effect at once");
+}
+
+static void testAtlas() {
+    Atlas atlas;
+    atlas.init(1, 128, 64);
+    atlas.add("hero", 0, 0, 16, 16);
+    atlas.add("coin", 16, 0, 8, 8);
+    atlas.addGrid("tile", 0, 32, 16, 16, 4, 1);
+
+    check(atlas.size() == 6, "atlas: grid expands to one region per cell");
+    check(atlas.has("hero") && atlas.has("tile3"), "atlas: regions are found by name");
+    check(!atlas.has("nope"), "atlas: an unknown name is absent, not a crash");
+
+    float u0, v0, u1, v1;
+    atlas.uv(*atlas.find("coin"), u0, v0, u1, v1);
+    check(std::fabs(u0 - 16.f / 128.f) < 1e-5f, "atlas: pixel rect converts to UV");
+    check(std::fabs(u1 - 24.f / 128.f) < 1e-5f, "atlas: UV spans the region width");
+}
+
+static void testSaveData() {
+    const char* path = "otacon_savetest.dat";
+    std::remove(path);
+
+    SaveData s;
+    check(!s.load(path), "save: a missing file is not an error");
+    check(s.getInt("score", 42) == 42, "save: a missing key returns the fallback");
+
+    s.set("score", 1500);
+    s.set("name", "raul");
+    s.set("music", true);
+    s.set("volume", 0.75f);
+    check(s.save(), "save: writes the file");
+
+    SaveData back;
+    check(back.load(path), "save: reads it back");
+    check(back.getInt("score") == 1500, "save: int round-trips");
+    check(back.getString("name") == "raul", "save: string round-trips");
+    check(back.getBool("music"), "save: bool round-trips");
+    check(std::fabs(back.getFloat("volume") - 0.75f) < 1e-5f, "save: float round-trips");
+
+    // A high score only ever goes up.
+    check(back.raise("score", 2000) && back.getInt("score") == 2000, "save: raise accepts a better score");
+    check(!back.raise("score", 100) && back.getInt("score") == 2000, "save: raise rejects a worse one");
+
+    // Malformed input must degrade to the fallback, never be trusted.
+    std::FILE* f = std::fopen(path, "wb");
+    std::fprintf(f, "# a comment\nbroken line with no separator\nscore=notanumber\nok=7\n");
+    std::fclose(f);
+    SaveData junk;
+    junk.load(path);
+    check(junk.getInt("score", -1) == -1, "save: an unparseable value falls back");
+    check(junk.getInt("ok") == 7, "save: a good key beside a bad one still reads");
+    std::remove(path);
+}
+
 int main() {
     // Unbuffered: if a check crashes the process, a fully-buffered stdout would
     // discard every line printed up to that point and the log would be empty --
@@ -468,6 +727,14 @@ int main() {
     testFlock();
     testAnimator();
     testRaycast();
+    testShapes();
+    testCollisionLayers();
+    testTimers();
+    testTweens();
+    testEvents();
+    testStateMachine();
+    testAtlas();
+    testSaveData();
     testGravityLanding();
     testPlayerJump();
     testComputeVelocity();

@@ -19,6 +19,7 @@ from boxes to art without touching the simulation.
 #include "core/math/Vector.hpp"
 #include "core/math/Rect.hpp"
 #include "render/RenderTypes.hpp"
+#include <cstdint>
 
 namespace otacon {
 
@@ -47,6 +48,25 @@ public:
     bool exists = true, active = true, visible = true;
     bool solid = true, fixed = false, moves = true, dead = false, onFloor = false;
     bool collideLeft = true, collideRight = true, collideTop = true, collideBottom = true;
+
+    // ---- collision filtering ----
+    // `layer` is what this body IS (one bit). `mask` is what it COLLIDES WITH.
+    // Two bodies interact only when each one's mask admits the other's layer --
+    // both directions, so a filter can never be one-sided, which is the bug that
+    // makes a bullet pass through a wall from one side only.
+    //
+    // Defaulting both to all-ones means a body that never touches these fields
+    // behaves exactly as it did before layers existed.
+    std::uint32_t layer = 0xFFFFFFFFu;
+    std::uint32_t mask  = 0xFFFFFFFFu;
+
+    // Trigger volumes report an overlap but are never separated -- a pickup, a
+    // checkpoint, a damage zone. The solver skips them; the caller asks.
+    bool trigger = false;
+
+    bool canCollideWith(const Entity& o) const {
+        return (mask & o.layer) != 0u && (o.mask & layer) != 0u;
+    }
 
     // ---- collision scratch (swept hulls) ----
     Rect colHullX, colHullY;
