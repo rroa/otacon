@@ -17,7 +17,7 @@
 // take on trust.
 #include "Sample.hpp"
 #include "common/Art.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -176,7 +176,7 @@ private:
         for (int i = 0; i < kPlot; ++i) plot_[i] = 0;
     }
     void seedItems() {
-        Rng rng(0x57E55);
+        otacon::Random rng(0x57E55);
         for (int i = 0; i < kMaxItems; ++i) {
             Item& it = items_[i];
             it.x = rng.range(0, W_); it.y = rng.range(layout::kTop, H_ - 78);

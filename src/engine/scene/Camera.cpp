@@ -60,8 +60,7 @@ the level a deterministic run generates.
 ==================
 */
 float Camera::shakeRand() {
-    shakeRng_ = shakeRng_ * 1664525u + 1013904223u;
-    return (float(shakeRng_ >> 8) / float(1u << 24)) * 2.0f - 1.0f;   // [-1, 1)
+    return shakeRng_.unit() * 2.0f - 1.0f;   // [-1, 1)
 }
 
 /*

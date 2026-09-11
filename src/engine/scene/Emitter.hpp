@@ -15,6 +15,7 @@ of a sprite sheet, spinning with the particle's angle.
 ===========================================================================
 */
 #pragma once
+#include "core/math/Random.hpp"
 #include "scene/Entity.hpp"
 #include "scene/Camera.hpp"
 #include "scene/Node.hpp"
@@ -48,7 +49,7 @@ public:
     int   frameCols = 1, frameRows = 1;
 
     void init(int count);            // allocate the pool
-    void seed(std::uint32_t s) { rng_ = s ? s : 1u; }
+    void seed(std::uint32_t s) { rng_.seed(s); }
 
     void start(bool explode, int quantity = 0);   // begin emitting
     void stop() { on_ = false; }
@@ -60,15 +61,17 @@ public:
 
 private:
     void emitParticle();
-    float unit() { rng_ = rng_ * 1664525u + 1013904223u; return float(rng_ >> 8) / float(1u << 24); }
-    float range(float a, float b) { return a + (b - a) * unit(); }
+    // The engine's Random, not a private LCG. An emitter keeps its own instance
+    // so a burst of sparks can never shift the stream a level generator reads.
+    float unit() { return rng_.unit(); }
+    float range(float a, float b) { return rng_.range(a, b); }
 
     std::vector<Entity> pool_;
     std::size_t next_ = 0;
     bool   on_ = false;
     float  timer_ = 0;
     int    quantity_ = 0;
-    std::uint32_t rng_ = 0xBADC0DE;
+    Random rng_{0xBADC0DEu};
 };
 
 } // namespace otacon

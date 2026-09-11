@@ -1,4 +1,5 @@
 #include "common/Art.hpp"
+#include "core/math/Noise.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -110,19 +111,10 @@ Image heroSheet(int& frameW, int& frameH, int& frameCount) {
 // enough to make a flat colour read as a surface.
 namespace {
 
-float lattice(int x, int y, std::uint32_t seed) {
-    std::uint32_t n = std::uint32_t(x) * 374761393u + std::uint32_t(y) * 668265263u + seed;
-    n = (n ^ (n >> 13)) * 1274126177u;
-    return float((n ^ (n >> 16)) & 0xFFFFFF) / float(0xFFFFFF);
-}
+// The engine owns value noise now (core/math/Noise.hpp); this is the one call
+// site's shorthand for it, kept so the surface texturing below reads unchanged.
 float smoothNoise(float x, float y, std::uint32_t seed) {
-    int xi = int(std::floor(x)), yi = int(std::floor(y));
-    float fx = x - xi, fy = y - yi;
-    fx = fx * fx * (3.f - 2.f * fx);           // smoothstep the interpolation
-    fy = fy * fy * (3.f - 2.f * fy);
-    float a = lattice(xi, yi, seed),       b = lattice(xi + 1, yi, seed);
-    float c = lattice(xi, yi + 1, seed),   d = lattice(xi + 1, yi + 1, seed);
-    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+    return otacon::noise::value(x, y, seed);
 }
 
 void putRGB(Image& img, int x, int y, float r, float g, float b, float a = 1.f) {

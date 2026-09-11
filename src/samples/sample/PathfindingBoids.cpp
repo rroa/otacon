@@ -14,8 +14,10 @@
 // a small neighbourhood — separation, alignment, cohesion — and the flock is a
 // side effect. Zero a weight and watch which part of "flocking" it was.
 #include "Sample.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "scene/TileMap.hpp"
+#include "scene/PathFinder.hpp"
+#include "scene/Steering.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -30,20 +32,13 @@ namespace {
 using otacon::Color;
 
 // ---------------------------------------------------------------------------
-// A*
+// The A* search and the flock both live in the engine now (scene/PathFinder.hpp,
+// scene/Steering.hpp). What stays here is the presentation: the grid this sample
+// searches, and the drawing that makes the open and closed sets visible.
 constexpr int kGridW = 54, kGridH = 30;
 
-struct Node {
-    float g = 1e30f, f = 1e30f;
-    int   parent = -1;
-    bool  open = false, closed = false;
-};
-
-const char* kHeuristicName[3] = {"zero (= Dijkstra)", "manhattan", "manhattan x2.5 (greedy)"};
-
-// ---------------------------------------------------------------------------
-// Boids
-struct Boid { float x, y, vx, vy; };
+using otacon::PathFinder;
+using otacon::Boid;
 
 class PathfindingBoids final : public Sample {
 public:
@@ -95,10 +90,11 @@ public:
     const char* status() const override {
         if (mode_ == 0)
             std::snprintf(buf_, sizeof buf_, "A*  %s  visited %d  path %d",
-                          kHeuristicName[heuristic_], visited_, pathLen_);
+                          PathFinder::heuristicName(kHeuristics[heuristic_]),
+                          finder_.visited(), finder_.pathLength());
         else
             std::snprintf(buf_, sizeof buf_, "boids  %d agents  sep %.1f  ali %.1f  coh %.1f",
-                          int(flock_.size()), sepW_, aliW_, cohW_);
+                          int(flock_.boids.size()), sepW_, aliW_, cohW_);
         return buf_;
     }
     const char* keys() const override {
@@ -115,7 +111,7 @@ private:
     void buildGrid() {
         map_.resize(kGridW, kGridH, 0);
         map_.firstSolid = 1;
-        Rng rng(0xA5741 + seed_ * 977u);
+        otacon::Random rng(0xA5741 + seed_ * 977u);
         // Scattered rectangular blocks: enough structure to make the heuristic
         // matter, without becoming a maze with only one answer.
         for (int i = 0; i < 34; ++i) {
@@ -131,85 +127,26 @@ private:
         }
     }
 
-    float heuristic(int x, int y) const {
-        const float dx = float(std::abs(x - goalX_)), dy = float(std::abs(y - goalY_));
-        switch (heuristic_) {
-            case 0:  return 0.f;                 // Dijkstra
-            case 1:  return dx + dy;             // admissible for 4-way movement
-            default: return (dx + dy) * 2.5f;    // inadmissible: fast but not optimal
-        }
-    }
-
     void solve() {
-        nodes_.assign(std::size_t(kGridW) * kGridH, Node{});
-        path_.clear();
-        visited_ = 0; pathLen_ = 0;
-
-        auto idx = [](int x, int y) { return std::size_t(y) * kGridW + x; };
-        std::vector<int> open;                    // small enough that a linear scan is honest
-        nodes_[idx(startX_, startY_)].g = 0.f;
-        nodes_[idx(startX_, startY_)].f = heuristic(startX_, startY_);
-        nodes_[idx(startX_, startY_)].open = true;
-        open.push_back(int(idx(startX_, startY_)));
-
-        const int dx4[4] = {1, -1, 0, 0}, dy4[4] = {0, 0, 1, -1};
-        while (!open.empty()) {
-            // Pop the lowest f. A real implementation uses a binary heap; the
-            // scan is kept here because it makes the loop readable and the grid
-            // is 1620 cells.
-            std::size_t best = 0;
-            for (std::size_t i = 1; i < open.size(); ++i)
-                if (nodes_[open[i]].f < nodes_[open[best]].f) best = i;
-            const int cur = open[best];
-            open[best] = open.back(); open.pop_back();
-
-            Node& c = nodes_[cur];
-            if (c.closed) continue;
-            c.open = false; c.closed = true;
-            ++visited_;
-
-            const int cx = cur % kGridW, cy = cur / kGridW;
-            if (cx == goalX_ && cy == goalY_) break;
-
-            for (int k = 0; k < 4; ++k) {
-                const int nx = cx + dx4[k], ny = cy + dy4[k];
-                if (!map_.inBounds(nx, ny) || map_.solid(nx, ny)) continue;
-                const std::size_t ni = idx(nx, ny);
-                if (nodes_[ni].closed) continue;
-                const float ng = c.g + 1.f;
-                if (ng < nodes_[ni].g) {
-                    nodes_[ni].g = ng;
-                    nodes_[ni].f = ng + heuristic(nx, ny);
-                    nodes_[ni].parent = cur;
-                    if (!nodes_[ni].open) { nodes_[ni].open = true; open.push_back(int(ni)); }
-                }
-            }
-        }
-
-        // Walk the parent chain back from the goal.
-        int cur = int(idx(goalX_, goalY_));
-        if (nodes_[cur].closed || nodes_[cur].parent >= 0) {
-            while (cur >= 0) { path_.push_back(cur); cur = nodes_[cur].parent; }
-            std::reverse(path_.begin(), path_.end());
-            pathLen_ = int(path_.size());
-        }
+        finder_.heuristic = kHeuristics[heuristic_];
+        finder_.search(map_, startX_, startY_, goalX_, goalY_);
     }
 
     void renderAStar(otacon::IRenderer& r) const {
         const float c = cell(), ox = originX(), oy = originY();
         for (int y = 0; y < kGridH; ++y) {
             for (int x = 0; x < kGridW; ++x) {
-                const std::size_t i = std::size_t(y) * kGridW + x;
                 Color col;
-                if (map_.solid(x, y))          col = Color{0.20f, 0.23f, 0.30f, 1.f};
-                else if (nodes_[i].closed)     col = Color{0.16f, 0.30f, 0.40f, 1.f};   // explored
-                else if (nodes_[i].open)       col = Color{0.22f, 0.46f, 0.42f, 1.f};   // frontier
-                else                           col = Color{0.08f, 0.09f, 0.12f, 1.f};
+                if (map_.solid(x, y))                col = Color{0.20f, 0.23f, 0.30f, 1.f};
+                else if (finder_.wasExplored(x, y))  col = Color{0.16f, 0.30f, 0.40f, 1.f};  // closed
+                else if (finder_.isFrontier(x, y))   col = Color{0.22f, 0.46f, 0.42f, 1.f};  // open
+                else                                 col = Color{0.08f, 0.09f, 0.12f, 1.f};
                 r.fillRect(ox + x * c, oy + y * c, c - 0.7f, c - 0.7f, col);
             }
         }
-        for (std::size_t i = 1; i < path_.size(); ++i) {
-            const int a = path_[i - 1], b = path_[i];
+        const std::vector<int>& path = finder_.path();
+        for (std::size_t i = 1; i < path.size(); ++i) {
+            const int a = path[i - 1], b = path[i];
             r.drawLine(ox + (a % kGridW + 0.5f) * c, oy + (a / kGridW + 0.5f) * c,
                        ox + (b % kGridW + 0.5f) * c, oy + (b / kGridW + 0.5f) * c,
                        Color{1.f, 0.85f, 0.3f, 1.f}, 2.f);
@@ -224,10 +161,10 @@ private:
         r.drawText("g: cost so far", px, y, 1.f, Color{0.50f, 0.56f, 0.68f, 1.f}); y += 8;
         r.drawText("h: guess to goal", px, y, 1.f, Color{0.50f, 0.56f, 0.68f, 1.f}); y += 14;
         r.drawText("HEURISTIC (E)", px, y, 1.f, Color{0.55f, 0.80f, 1.f, 1.f}); y += 10;
-        r.drawText(kHeuristicName[heuristic_], px, y, 1.f, Color{1.f, 0.85f, 0.35f, 1.f}); y += 14;
+        r.drawText(PathFinder::heuristicName(kHeuristics[heuristic_]), px, y, 1.f, Color{1.f, 0.85f, 0.35f, 1.f}); y += 14;
         char t[64];
-        std::snprintf(t, sizeof t, "visited  %d", visited_); r.drawText(t, px, y, 1.f, Color{0.55f, 0.62f, 0.75f, 1.f}); y += 9;
-        std::snprintf(t, sizeof t, "path     %d", pathLen_); r.drawText(t, px, y, 1.f, Color{0.55f, 0.62f, 0.75f, 1.f}); y += 14;
+        std::snprintf(t, sizeof t, "visited  %d", finder_.visited()); r.drawText(t, px, y, 1.f, Color{0.55f, 0.62f, 0.75f, 1.f}); y += 9;
+        std::snprintf(t, sizeof t, "path     %d", finder_.pathLength()); r.drawText(t, px, y, 1.f, Color{0.55f, 0.62f, 0.75f, 1.f}); y += 14;
         r.drawText("teal  frontier", px, y, 1.f, Color{0.30f, 0.62f, 0.58f, 1.f}); y += 8;
         r.drawText("blue  explored", px, y, 1.f, Color{0.28f, 0.50f, 0.66f, 1.f}); y += 14;
         r.drawText("h=0 explores every-", px, y, 1.f, Color{0.42f, 0.48f, 0.60f, 1.f}); y += 8;
@@ -238,73 +175,38 @@ private:
 
     // ---- boids ----
     void buildFlock() {
-        Rng rng(0xB01D5);
+        otacon::Random rng(0xB01D5);
         flock_.clear();
         for (int i = 0; i < 190; ++i) {
-            const float a = rng.range(0.f, 6.28318f);
-            flock_.push_back({rng.range(60.f, W_ - 220.f), rng.range(layout::kTop + 40.f, H_ - 40.f),
-                              std::cos(a) * 70.f, std::sin(a) * 70.f});
+            const otacon::Vec2f d = rng.onUnitCircle();
+            flock_.add(rng.range(60.f, W_ - 220.f),
+                       rng.range(layout::kTop + 40.f, H_ - 40.f),
+                       d.x * 70.f, d.y * 70.f);
         }
     }
 
     void stepFlock(float dt) {
-        const float R2 = kNeighbourR * kNeighbourR, S2 = kSeparateR * kSeparateR;
-        std::vector<Boid> next = flock_;
-        for (std::size_t i = 0; i < flock_.size(); ++i) {
-            const Boid& b = flock_[i];
-            float sx = 0, sy = 0, ax = 0, ay = 0, cx = 0, cy = 0;
-            int nNear = 0, nSep = 0;
-            for (std::size_t j = 0; j < flock_.size(); ++j) {
-                if (i == j) continue;
-                const float dx = flock_[j].x - b.x, dy = flock_[j].y - b.y;
-                const float d2 = dx * dx + dy * dy;
-                if (d2 > R2) continue;
-                ++nNear;
-                ax += flock_[j].vx; ay += flock_[j].vy;      // alignment
-                cx += flock_[j].x;  cy += flock_[j].y;       // cohesion
-                if (d2 < S2 && d2 > 0.0001f) {               // separation, weighted by closeness
-                    sx -= dx / d2; sy -= dy / d2; ++nSep;
-                }
-            }
-            float fx = 0, fy = 0;
-            if (nSep)  { fx += sx * kSepScale * sepW_; fy += sy * kSepScale * sepW_; }
-            if (nNear) {
-                fx += (ax / nNear - b.vx) * aliW_;
-                fy += (ay / nNear - b.vy) * aliW_;
-                fx += (cx / nNear - b.x) * kCohScale * cohW_;
-                fy += (cy / nNear - b.y) * kCohScale * cohW_;
-            }
-            // Steer gently toward the cursor so the flock has somewhere to be.
-            fx += (mx_ - b.x) * 0.12f; fy += (my_ - b.y) * 0.12f;
-
-            Boid& n = next[i];
-            n.vx += fx * dt; n.vy += fy * dt;
-            const float sp = std::sqrt(n.vx * n.vx + n.vy * n.vy);
-            if (sp > kMaxSpeed) { n.vx = n.vx / sp * kMaxSpeed; n.vy = n.vy / sp * kMaxSpeed; }
-            if (sp < kMinSpeed && sp > 0.001f) { n.vx = n.vx / sp * kMinSpeed; n.vy = n.vy / sp * kMinSpeed; }
-            n.x += n.vx * dt; n.y += n.vy * dt;
-
-            // Wrap inside the play area.
-            const float L = 8.f, Rr = W_ - 170.f, T = layout::kTop + 4, B = H_ - 8;
-            if (n.x < L) n.x = Rr; if (n.x > Rr) n.x = L;
-            if (n.y < T) n.y = B;  if (n.y > B)  n.y = T;
-        }
-        flock_.swap(next);
+        flock_.params.separationWeight = sepW_;
+        flock_.params.alignmentWeight  = aliW_;
+        flock_.params.cohesionWeight   = cohW_;
+        otacon::Vec2f cursor{mx_, my_};
+        flock_.step(dt, &cursor);
+        flock_.wrap(8.f, layout::kTop + 4.f, W_ - 170.f, H_ - 8.f);
     }
 
     void renderBoids(otacon::IRenderer& r) const {
         if (showNeighbours_) {
-            const float R2 = kNeighbourR * kNeighbourR;
-            for (std::size_t i = 0; i < flock_.size(); i += 3) {
-                for (std::size_t j = i + 1; j < flock_.size(); j += 3) {
-                    const float dx = flock_[j].x - flock_[i].x, dy = flock_[j].y - flock_[i].y;
+            const float R2 = flock_.params.neighbourRadius * flock_.params.neighbourRadius;
+            for (std::size_t i = 0; i < flock_.boids.size(); i += 3) {
+                for (std::size_t j = i + 1; j < flock_.boids.size(); j += 3) {
+                    const float dx = flock_.boids[j].x - flock_.boids[i].x, dy = flock_.boids[j].y - flock_.boids[i].y;
                     if (dx * dx + dy * dy > R2) continue;
-                    r.drawLine(flock_[i].x, flock_[i].y, flock_[j].x, flock_[j].y,
+                    r.drawLine(flock_.boids[i].x, flock_.boids[i].y, flock_.boids[j].x, flock_.boids[j].y,
                                Color{0.35f, 0.65f, 0.90f, 0.13f}, 1.f);
                 }
             }
         }
-        for (const Boid& b : flock_) {
+        for (const Boid& b : flock_.boids) {
             const float sp = std::sqrt(b.vx * b.vx + b.vy * b.vy);
             const float ux = sp > 0.001f ? b.vx / sp : 1.f, uy = sp > 0.001f ? b.vy / sp : 0.f;
             // A dart: a line from tail to nose, so heading is readable.
@@ -337,17 +239,16 @@ private:
         return y + 11;
     }
 
-    static constexpr float kNeighbourR = 34.f, kSeparateR = 15.f;
-    static constexpr float kSepScale = 900.f, kCohScale = 1.1f;
-    static constexpr float kMaxSpeed = 128.f, kMinSpeed = 52.f;
 
     otacon::TileMap map_;
-    std::vector<Node> nodes_;
-    std::vector<int>  path_;
-    std::vector<Boid> flock_;
+    PathFinder      finder_;
+    otacon::Flock   flock_;
     float W_ = 640, H_ = 400, mx_ = 320, my_ = 200;
     float sepW_ = 1.6f, aliW_ = 1.0f, cohW_ = 0.9f;
-    int   mode_ = 0, heuristic_ = 1, visited_ = 0, pathLen_ = 0;
+    int   mode_ = 0, heuristic_ = 1;
+    static constexpr PathFinder::Heuristic kHeuristics[3] = {
+        PathFinder::Heuristic::None, PathFinder::Heuristic::Manhattan, PathFinder::Heuristic::Greedy,
+    };
     int   startX_ = 1, startY_ = 1, goalX_ = 1, goalY_ = 1;
     std::uint32_t seed_ = 3;
     bool  showNeighbours_ = false;

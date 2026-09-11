@@ -84,14 +84,33 @@ public:
         const float rate = clip_->fps > 0.f ? clip_->fps : 1.f;
         const float hold = 1.f / rate;
         timer_ += toFloat(dt);
-        while (timer_ >= hold) {
-            timer_ -= hold;
-            if (cursor_ + 1 >= clip_->count) {
+
+        // How many whole holds have elapsed. Deliberately a division rather
+        // than the obvious `while (timer_ >= hold) timer_ -= hold;`: repeated
+        // subtraction accumulates a rounding error per iteration, which makes
+        // the frame count depend on floating-point precision. That is not
+        // theoretical -- a compiler is free to constant-fold a loop of this
+        // shape at higher precision than the runtime path, and then the same
+        // code advances a different number of frames depending on whether it
+        // was folded.
+        //
+        // One division is one rounding, and the small tolerance keeps content
+        // authored at the frame rate (a 60fps clip stepped with dt = 1/60,
+        // which lands exactly on the boundary) off the knife edge. The slack is
+        // a thousandth of a frame.
+        int steps = int(timer_ / hold + 1e-3f);
+        if (steps <= 0) return;
+        timer_ -= float(steps) * hold;
+        if (timer_ < 0.f) timer_ = 0.f;
+
+        const int last = clip_->count - 1;
+        while (steps-- > 0) {
+            if (cursor_ >= last) {
                 // A non-looping clip stops on its last frame rather than
                 // wrapping or going blank, which is almost always what a
                 // one-shot (a death, a land) actually wants.
-                if (clip_->loop) cursor_ = 0;
-                else { finished_ = true; return; }
+                if (!clip_->loop) { finished_ = true; return; }
+                cursor_ = 0;
             } else {
                 ++cursor_;
             }

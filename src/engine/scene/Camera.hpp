@@ -7,6 +7,7 @@ scene/Camera.hpp - 2D scrolling camera
 ===========================================================================
 */
 #pragma once
+#include "core/math/Random.hpp"
 #include "scene/Entity.hpp"
 
 namespace otacon {
@@ -58,7 +59,10 @@ private:
     Real          shakeIntensity_ = R(0.0065f), shakeDuration_ = R(2.5f), shakeTimer_ = R(0);
     Vec2f         shakeAxis_{0, 1};
     Vec2f         shakeOffset_{0, 0};
-    std::uint32_t shakeRng_ = 0x9E3779B9u;   // tiny LCG for the offset (cosmetic)
+    // Its own generator on purpose: the quake is cosmetic, and drawing from a
+    // shared stream would let a screen shake change the level a deterministic
+    // run generates.
+    Random        shakeRng_{0x9E3779B9u};
     float         shakeRand();               // [-1,1)
 };
 

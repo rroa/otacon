@@ -10,7 +10,7 @@
 // solver actually tests are drawn, and you can step one frame at a time to watch
 // the X pass and the Y pass resolve separately.
 #include "Sample.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "scene/Entity.hpp"
 #include "scene/Collision.hpp"
 #include "render/IRenderer.hpp"
@@ -36,7 +36,7 @@ public:
     void enter() override {
         boxes_.clear(); statics_.clear(); all_.clear();
         gravity_ = 900.f; dragCoef_ = 0.f; maxFall_ = 480.f;
-        rng_.reseed(0xB0CE5);
+        rng_.seed(0xB0CE5);
         buildStatics();
         for (int i = 0; i < 14; ++i) spawn(rng_.range(80.f, W_ - 120.f), rng_.range(60.f, 160.f));
         grabbed_ = nullptr;
@@ -206,7 +206,7 @@ private:
     std::vector<std::unique_ptr<Entity>> boxes_, statics_;
     std::vector<Entity*> all_;
     Entity* grabbed_ = nullptr;
-    Rng rng_{0xB0CE5};
+    otacon::Random rng_{0xB0CE5};
     float W_ = 640, H_ = 400, mx_ = 320, my_ = 200;
     float gravity_ = 900, dragCoef_ = 0, maxFall_ = 480;
     bool showHulls_ = false;

@@ -14,7 +14,8 @@
 // each pass. That iteration count is the knob this sample is really about: at 1
 // the rope is elastic, at 20 it is a chain. Nothing else changes.
 #include "Sample.hpp"
-#include "common/Rng.hpp"
+#include "scene/Verlet.hpp"
+#include "core/math/Random.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "core/debug/Debug.hpp"
@@ -28,64 +29,12 @@ namespace {
 
 using otacon::Color;
 
-struct Point {
-    float x = 0, y = 0, px = 0, py = 0;
-    bool pinned = false;
-    void place(float nx, float ny) { x = px = nx; y = py = ny; }
-};
-
-struct Link { int a = 0, b = 0; float rest = 0; };
-
-// A rope, a cloth or a hanging bridge — all the same two arrays, only the link
-// list differs. That is the point of showing three shapes in one sample.
-struct Body {
-    std::vector<Point> pts;
-    std::vector<Link>  links;
-
-    void verlet(float dt, float gravity, float damping) {
-        for (Point& p : pts) {
-            if (p.pinned) continue;
-            const float vx = (p.x - p.px) * damping;
-            const float vy = (p.y - p.py) * damping;
-            p.px = p.x; p.py = p.y;
-            p.x += vx;
-            p.y += vy + gravity * dt * dt;
-        }
-    }
-    // One relaxation pass: pull each pair back toward its rest length, splitting
-    // the correction between them (or giving all of it to the free one).
-    void relax() {
-        for (const Link& l : links) {
-            Point& a = pts[l.a];
-            Point& b = pts[l.b];
-            const float dx = b.x - a.x, dy = b.y - a.y;
-            const float d = std::sqrt(dx * dx + dy * dy);
-            if (d < 0.0001f) continue;
-            const float diff = (d - l.rest) / d * 0.5f;
-            const float ox = dx * diff, oy = dy * diff;
-            if (!a.pinned) { a.x += ox; a.y += oy; }
-            if (!b.pinned) { b.x -= ox; b.y -= oy; }
-        }
-    }
-    void collideFloor(float floorY) {
-        for (Point& p : pts) {
-            if (p.pinned) continue;
-            if (p.y > floorY) {
-                p.y = floorY;
-                p.px = p.x + (p.x - p.px) * 0.4f;   // a little friction on contact
-            }
-        }
-    }
-    float strain() const {
-        float worst = 0;
-        for (const Link& l : links) {
-            const float dx = pts[l.b].x - pts[l.a].x, dy = pts[l.b].y - pts[l.a].y;
-            const float d = std::sqrt(dx * dx + dy * dy);
-            if (l.rest > 0.0001f) worst = std::max(worst, std::fabs(d - l.rest) / l.rest);
-        }
-        return worst;
-    }
-};
+// Point, Link and the solver used to live here. They are otacon::VerletPoint,
+// otacon::DistanceConstraint and otacon::VerletBody now -- a constraint solver is
+// a physics subsystem, not something a sample should own.
+using otacon::VerletBody;
+using otacon::VerletPoint;
+using otacon::DistanceConstraint;
 
 enum Shape { kRope = 0, kBridge, kCloth, kShapeCount };
 const char* kShapeName[kShapeCount] = {"rope", "bridge", "cloth"};
@@ -107,7 +56,7 @@ public:
         if (in.isPressed(otacon::Action::Aux4)) showLinks_ = !showLinks_;    // F4
         if (in.selectSlot >= 1 && in.selectSlot <= 9) iterations_ = kIterPreset[in.selectSlot - 1];
 
-        if (in.dragPressed) grabbed_ = nearest(mx_, my_);
+        if (in.dragPressed) grabbed_ = body_.nearest(mx_, my_);
         if (!in.dragHeld) grabbed_ = -1;
     }
 
@@ -116,19 +65,23 @@ public:
         if (step <= 0.f || step > 0.1f) return;
         t_ += step;
 
-        if (grabbed_ >= 0 && grabbed_ < int(body_.pts.size())) {
-            Point& p = body_.pts[grabbed_];
-            p.x = mx_; p.y = my_;
-            p.px = mx_; p.py = my_;      // zero its implied velocity while held
+        if (grabbed_ >= 0 && grabbed_ < int(body_.points.size())) {
+            // teleport() moves without implying velocity, so releasing a
+            // dragged point does not fling it.
+            body_.points[grabbed_].teleport(mx_, my_);
         }
 
-        body_.verlet(step, gravity_, damping_);
+        body_.gravity = gravity_;
+        body_.damping = damping_;
+        body_.iterations = iterations_;
+        body_.integrate(step);
         if (wind_) {
             const float gust = std::sin(t_ * 1.7f) * 0.6f + std::sin(t_ * 4.3f) * 0.25f;
-            for (Point& p : body_.pts) if (!p.pinned) p.x += gust * 26.f * step;
+            for (VerletPoint& p : body_.points) if (!p.pinned) p.x += gust * 26.f * step;
         }
         // The relaxation sweep. More passes = stiffer, and this loop is the
-        // entire difference between a bungee and a chain.
+        // entire difference between a bungee and a chain. Interleaving the floor
+        // with the passes is why a pile settles instead of sinking.
         for (int i = 0; i < iterations_; ++i) {
             body_.relax();
             body_.collideFloor(H_ - 26.f);
@@ -139,9 +92,9 @@ public:
         r.fillRect(0, H_ - 26, W_, 26, Color{0.14f, 0.17f, 0.23f, 1.f});
 
         if (showLinks_) {
-            for (const Link& l : body_.links) {
-                const Point& a = body_.pts[l.a];
-                const Point& b = body_.pts[l.b];
+            for (const DistanceConstraint& l : body_.links) {
+                const VerletPoint& a = body_.points[l.a];
+                const VerletPoint& b = body_.points[l.b];
                 const float dx = b.x - a.x, dy = b.y - a.y;
                 const float d = std::sqrt(dx * dx + dy * dy);
                 // Colour by strain: blue is slack, red is stretched past rest.
@@ -151,8 +104,8 @@ public:
                 r.drawLine(a.x, a.y, b.x, b.y, c, 1.f);
             }
         }
-        for (std::size_t i = 0; i < body_.pts.size(); ++i) {
-            const Point& p = body_.pts[i];
+        for (std::size_t i = 0; i < body_.points.size(); ++i) {
+            const VerletPoint& p = body_.points[i];
             if (p.pinned) r.fillRect(p.x - 3, p.y - 3, 6, 6, Color{1.f, 0.82f, 0.35f, 1.f});
             else if (int(i) == grabbed_) r.fillRect(p.x - 3, p.y - 3, 6, 6, Color{1.f, 1.f, 1.f, 1.f});
             else if (shape_ != kCloth) r.fillRect(p.x - 1.5f, p.y - 1.5f, 3, 3, Color{0.70f, 0.78f, 0.92f, 1.f});
@@ -163,7 +116,7 @@ public:
 
     const char* status() const override {
         std::snprintf(buf_, sizeof buf_, "%s  %d points  %d links  %d iterations  strain %.1f%%",
-                      kShapeName[shape_], int(body_.pts.size()), int(body_.links.size()),
+                      kShapeName[shape_], int(body_.points.size()), int(body_.links.size()),
                       iterations_, body_.strain() * 100.f);
         return buf_;
     }
@@ -175,62 +128,15 @@ private:
     static constexpr int kIterPreset[9] = {1, 2, 3, 5, 8, 12, 16, 24, 40};
 
     void build() {
-        body_.pts.clear(); body_.links.clear();
         const float top = layout::kTop + 30;
         switch (shape_) {
-            case kRope: {
-                // Long enough to reach the floor and pile up on it — the pile is
-                // half the demonstration, since it is the constraint and the
-                // floor contact fighting each other.
-                const int n = 46;
-                const float seg = 8.f, x0 = W_ * 0.5f - 40;
-                for (int i = 0; i < n; ++i) {
-                    Point p; p.place(x0 + i * 2.f, top + i * seg * 0.6f);
-                    p.pinned = (i == 0);
-                    body_.pts.push_back(p);
-                }
-                for (int i = 0; i + 1 < n; ++i) body_.links.push_back({i, i + 1, seg});
-                break;
-            }
-            case kBridge: {
-                const int n = 26;
-                const float span = W_ - 140.f, seg = span / (n - 1);
-                for (int i = 0; i < n; ++i) {
-                    Point p; p.place(70.f + i * seg, top + 40);
-                    p.pinned = (i == 0 || i == n - 1);       // both ends anchored
-                    body_.pts.push_back(p);
-                }
-                for (int i = 0; i + 1 < n; ++i) body_.links.push_back({i, i + 1, seg * 0.92f});
-                break;
-            }
-            default: {
-                const int cw = 16, ch = 12;
-                const float seg = 12.f, x0 = W_ * 0.5f - (cw - 1) * seg * 0.5f;
-                for (int y = 0; y < ch; ++y)
-                    for (int x = 0; x < cw; ++x) {
-                        Point p; p.place(x0 + x * seg, top + y * seg);
-                        p.pinned = (y == 0 && (x % 5 == 0 || x == cw - 1));
-                        body_.pts.push_back(p);
-                    }
-                auto idx = [&](int x, int y) { return y * cw + x; };
-                for (int y = 0; y < ch; ++y)
-                    for (int x = 0; x < cw; ++x) {
-                        if (x + 1 < cw) body_.links.push_back({idx(x, y), idx(x + 1, y), seg});
-                        if (y + 1 < ch) body_.links.push_back({idx(x, y), idx(x, y + 1), seg});
-                    }
-                break;
-            }
+            case kRope:   body_.makeRope(W_ * 0.5f - 40, top, 46, 8.f); break;
+            case kBridge: body_.makeBridge(70.f, W_ - 70.f, top + 40, 26); break;
+            default:      body_.makeCloth(W_ * 0.5f - 7.5f * 12.f, top, 16, 12, 12.f); break;
         }
-    }
-
-    int nearest(float x, float y) const {
-        int best = -1; float bestD = 18.f * 18.f;
-        for (std::size_t i = 0; i < body_.pts.size(); ++i) {
-            const float dx = body_.pts[i].x - x, dy = body_.pts[i].y - y;
-            const float d = dx * dx + dy * dy;
-            if (d < bestD) { bestD = d; best = int(i); }
-        }
-        return best;
+        body_.gravity = gravity_;
+        body_.damping = damping_;
+        body_.iterations = iterations_;
     }
 
     void drawPanel(otacon::IRenderer& r) const {
@@ -259,7 +165,7 @@ private:
                    8, H_ - 10, 1.f, Color{0.42f, 0.48f, 0.60f, 1.f});
     }
 
-    Body  body_;
+    VerletBody body_;
     float W_ = 640, H_ = 400, mx_ = 0, my_ = 0, t_ = 0;
     float gravity_ = 1400.f, damping_ = 0.995f;
     int   shape_ = kRope, iterations_ = 8, grabbed_ = -1;

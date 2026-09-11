@@ -10,7 +10,7 @@
 // raw indices over the art so the array underneath stops being abstract.
 #include "Sample.hpp"
 #include "common/Art.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "scene/TileMap.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
@@ -131,7 +131,7 @@ private:
     void build() {
         map_.resize(kMapW, kMapH, 0);
         map_.firstSolid = 1;
-        Rng rng(seed_++);
+        otacon::Random rng(seed_++);
         float h[kMapW];
         for (int x = 0; x < kMapW; ++x) {
             const float t = float(x);

@@ -14,7 +14,7 @@
 // costs two lines and is most of what "good camera" means in 2D.
 #include "Sample.hpp"
 #include "common/Art.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "scene/Camera.hpp"
 #include "scene/Entity.hpp"
 #include "render/IRenderer.hpp"
@@ -44,7 +44,7 @@ public:
         hero_ = r_->createTexture(art::heroSheet(fw, fh, fc));
         frameW_ = fw; frameH_ = fh; frameCount_ = fc;
 
-        Rng rng(0x70D0);
+        otacon::Random rng(0x70D0);
         props_.clear();
         for (int i = 0; i < 90; ++i)
             props_.push_back({rng.range(0, kWorldW), rng.range(0, kWorldH),

@@ -11,6 +11,17 @@
 #include "asset/Image.hpp"
 #include "asset/Audio.hpp"
 #include "audio/Mixer.hpp"
+#include "core/math/Random.hpp"
+#include "core/math/Noise.hpp"
+#include "core/math/Ease.hpp"
+#include "scene/TileMap.hpp"
+#include "scene/PathFinder.hpp"
+#include "scene/Verlet.hpp"
+#include "scene/Steering.hpp"
+#include "scene/SpatialGrid.hpp"
+#include "scene/Animator.hpp"
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -221,10 +232,203 @@ static void testEmitter() {
     check(em.liveCount() == 0, "emitter: particles recycle once off-screen");
 }
 
+
+// ---------------------------------------------------------------------------
+// A fixed seed must give the same stream every time, on every machine -- that is
+// the whole contract the deterministic source exists to provide.
+static void testRandom() {
+    Random a(1234), b(1234);
+    bool same = true;
+    for (int i = 0; i < 256; ++i) if (a.next() != b.next()) { same = false; break; }
+    check(same, "random: same seed gives the same stream");
+
+    Random c(99);
+    const std::uint32_t first = c.next();
+    c.restart();
+    check(c.next() == first, "random: restart rewinds to the seed");
+
+    Random d(7);
+    bool inRange = true;
+    for (int i = 0; i < 4096; ++i) {
+        const float u = d.unit();
+        if (u < 0.f || u >= 1.f) { inRange = false; break; }
+    }
+    check(inRange, "random: unit() stays in [0,1)");
+
+    // rangeI is half-open, so it must never return the upper bound.
+    Random e(11);
+    bool bounded = true;
+    for (int i = 0; i < 4096; ++i) { const int v = e.rangeI(0, 4); if (v < 0 || v > 3) { bounded = false; break; } }
+    check(bounded, "random: rangeI(0,4) yields 0..3");
+
+    Random f(5);
+    const Vec2f dir = f.onUnitCircle();
+    check(std::fabs(std::sqrt(dir.x * dir.x + dir.y * dir.y) - 1.f) < 1e-4f,
+          "random: onUnitCircle returns a unit vector");
+}
+
+// Noise must be a pure function of its inputs, and continuous -- two nearby
+// samples must be nearby, or it is static rather than noise.
+static void testNoise() {
+    check(noise::value(3.7f, 2.1f, 9) == noise::value(3.7f, 2.1f, 9), "noise: same input gives same output");
+    float worst = 0.f;
+    for (int i = 0; i < 200; ++i) {
+        const float x = float(i) * 0.01f;
+        worst = std::max(worst, std::fabs(noise::value(x, 0.5f, 1) - noise::value(x + 0.01f, 0.5f, 1)));
+    }
+    check(worst < 0.25f, "noise: neighbouring samples are close (continuous)");
+    bool bounded = true;
+    for (int i = 0; i < 500 && bounded; ++i) {
+        const float v = noise::fbm(float(i) * 0.13f, float(i) * 0.07f, 5);
+        if (v < 0.f || v > 1.f) bounded = false;
+    }
+    check(bounded, "noise: fbm stays within 0..1");
+}
+
+static void testEase() {
+    check(std::fabs(ease::smoothstep(0.f)) < 1e-6f && std::fabs(ease::smoothstep(1.f) - 1.f) < 1e-6f,
+          "ease: smoothstep pins 0 and 1");
+    check(std::fabs(ease::lerp(10.f, 20.f, 0.5f) - 15.f) < 1e-6f, "ease: lerp midpoint");
+    check(std::fabs(ease::inverseLerp(10.f, 20.f, 15.f) - 0.5f) < 1e-6f, "ease: inverseLerp inverts lerp");
+    // damp must be frame-rate independent: one big step == several small ones.
+    float one = ease::damp(0.f, 100.f, 5.f, 0.5f);
+    float many = 0.f;
+    for (int i = 0; i < 50; ++i) many = ease::damp(many, 100.f, 5.f, 0.01f);
+    check(std::fabs(one - many) < 0.5f, "ease: damp is frame-rate independent");
+}
+
+// A* must find the shortest route on an open grid, and report failure rather
+// than a wrong answer when the goal is walled off.
+static void testPathFinder() {
+    TileMap map;
+    map.resize(20, 12, 0);
+    map.firstSolid = 1;
+
+    PathFinder pf;
+    pf.heuristic = PathFinder::Heuristic::Manhattan;
+    check(pf.search(map, 0, 0, 19, 11), "pathfind: finds a route across open ground");
+    // 4-way Manhattan distance is 19 + 11 = 30 steps, so 31 cells inclusive.
+    check(pf.pathLength() == 31, "pathfind: the route is the shortest one");
+
+    // Dijkstra must agree on length while exploring strictly more of the map.
+    const int greedyVisited = pf.visited();
+    pf.heuristic = PathFinder::Heuristic::None;
+    pf.search(map, 0, 0, 19, 11);
+    check(pf.pathLength() == 31, "pathfind: h=0 (Dijkstra) finds the same length");
+    check(pf.visited() > greedyVisited, "pathfind: h=0 explores more than a heuristic");
+
+    for (int y = 0; y < 12; ++y) map.set(10, y, 1);      // a full wall
+    pf.heuristic = PathFinder::Heuristic::Manhattan;
+    check(!pf.search(map, 0, 0, 19, 11), "pathfind: reports failure when walled off");
+    check(pf.path().empty(), "pathfind: no path returned on failure");
+}
+
+// A pinned rope must hang from its anchor and settle, and more relaxation
+// passes must leave it measurably less stretched.
+static void testVerlet() {
+    VerletBody body;
+    body.makeRope(100.f, 20.f, 20, 8.f);
+    body.iterations = 20;
+    for (int i = 0; i < 240; ++i) body.step(1.f / 60.f);
+
+    check(body.points[0].pinned && std::fabs(body.points[0].x - 100.f) < 0.001f,
+          "verlet: the pinned point never moves");
+    check(body.points.back().y > body.points.front().y, "verlet: the rope hangs downward");
+    check(body.strain() < 0.10f, "verlet: 20 passes hold the links near rest length");
+
+    VerletBody loose;
+    loose.makeRope(100.f, 20.f, 20, 8.f);
+    loose.iterations = 1;
+    for (int i = 0; i < 240; ++i) loose.step(1.f / 60.f);
+    check(loose.strain() > body.strain(), "verlet: fewer passes means more stretch");
+}
+
+// The broad phase must return everything a pair loop would, and nothing twice.
+static void testSpatialGrid() {
+    std::vector<Entity> bodies(40);
+    std::vector<Entity*> all;
+    for (std::size_t i = 0; i < bodies.size(); ++i) {
+        bodies[i].pos = {R(float(i % 8) * 30.f), R(float(i / 8) * 30.f)};
+        bodies[i].size = {R(16), R(16)};
+        all.push_back(&bodies[i]);
+    }
+    SpatialGrid grid(32.f);
+    grid.rebuild(all);
+
+    std::vector<Entity*> near;
+    grid.query(bodies[0], near);
+    check(!near.empty(), "spatial: query finds neighbours");
+    bool self = false, dup = false;
+    for (std::size_t i = 0; i < near.size(); ++i) {
+        if (near[i] == &bodies[0]) self = true;
+        for (std::size_t j = i + 1; j < near.size(); ++j) if (near[i] == near[j]) dup = true;
+    }
+    check(!self, "spatial: query never returns the body itself");
+    check(!dup, "spatial: query never returns a duplicate");
+    check(grid.largestBucket() < bodies.size(), "spatial: the grid actually partitions");
+}
+
+// Flocking with only separation must push agents apart; the average pair
+// distance is the measurable version of that.
+static void testFlock() {
+    Flock flock;
+    flock.params.separationWeight = 2.f;
+    flock.params.alignmentWeight = 0.f;
+    flock.params.cohesionWeight = 0.f;
+    Random rng(3);
+    for (int i = 0; i < 24; ++i) flock.add(rng.range(100.f, 140.f), rng.range(100.f, 140.f), 0.f, 0.f);
+
+    auto spread = [&]() {
+        float sum = 0.f; int n = 0;
+        for (std::size_t i = 0; i < flock.boids.size(); ++i)
+            for (std::size_t j = i + 1; j < flock.boids.size(); ++j) {
+                const float dx = flock.boids[j].x - flock.boids[i].x;
+                const float dy = flock.boids[j].y - flock.boids[i].y;
+                sum += std::sqrt(dx * dx + dy * dy); ++n;
+            }
+        return n ? sum / float(n) : 0.f;
+    };
+    const float before = spread();
+    for (int i = 0; i < 60; ++i) flock.step(1.f / 60.f);
+    check(spread() > before, "flock: separation alone pushes agents apart");
+}
+
+static void testAnimator() {
+    static const int frames[] = {0, 1, 2, 3};
+    const Clip run{"run", frames, 4, 10.f, true};
+    Animator a;
+    a.play(&run);
+    check(a.frame() == 0, "animator: starts on the first frame");
+    for (int i = 0; i < 6; ++i) a.update(R(1.f / 60.f));   // 0.1s = one hold at 10fps
+    check(a.frame() == 1, "animator: advances on the clock");
+    a.step(3);
+    check(a.frame() == 0, "animator: a looping clip wraps");
+
+    const Clip once{"once", frames, 4, 60.f, false};
+    Animator b;
+    b.play(&once);
+    for (int i = 0; i < 60; ++i) b.update(R(1.f / 60.f));
+    // Split rather than combined, so a failure says which half broke.
+    check(b.finished(), "animator: a one-shot reports finished");
+    check(b.frame() == 3, "animator: a one-shot stops on its last frame");
+}
+
 int main() {
+    // Unbuffered: if a check crashes the process, a fully-buffered stdout would
+    // discard every line printed up to that point and the log would be empty --
+    // which is exactly when you most need to know how far it got.
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("[test] scalar build = %s\n", kScalarName);
     testPngRoundtrip();
     testEmitter();
+    testRandom();
+    testNoise();
+    testEase();
+    testPathFinder();
+    testVerlet();
+    testSpatialGrid();
+    testFlock();
+    testAnimator();
     testGravityLanding();
     testPlayerJump();
     testComputeVelocity();

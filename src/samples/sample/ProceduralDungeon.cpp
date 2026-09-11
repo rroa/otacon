@@ -16,7 +16,7 @@
 // again — the single most useful property a generator can have.
 #include "Sample.hpp"
 #include "common/Art.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "scene/TileMap.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
@@ -140,11 +140,11 @@ private:
     void regenerate() {
         map_.resize(kW, kH, kVoid);
         rooms_.clear(); tree_.clear(); loops_.clear();
-        rng_.reseed(seed_);
+        rng_.seed(seed_);
         stage_ = 0;
     }
     void runTo(int stage) {
-        if (stage < stage_) { const std::uint32_t s = seed_; regenerate(); seed_ = s; rng_.reseed(seed_); }
+        if (stage < stage_) { const std::uint32_t s = seed_; regenerate(); seed_ = s; rng_.seed(seed_); }
         while (stage_ < stage) advance();
     }
 
@@ -323,7 +323,7 @@ private:
     otacon::TileMap map_;
     std::vector<Room> rooms_;
     std::vector<Edge> tree_, loops_;
-    Rng rng_{0x0D06};
+    otacon::Random rng_{0x0D06};
     std::uint32_t seed_ = 0x0D06;
     float W_ = 640, H_ = 400;
     int   stage_ = 0, tileCount_ = 6;

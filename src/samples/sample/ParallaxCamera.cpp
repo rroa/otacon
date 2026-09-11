@@ -11,7 +11,7 @@
 // split view that draws the same scene with every factor forced to 1 so you can
 // see exactly what the multiply is buying.
 #include "Sample.hpp"
-#include "common/Rng.hpp"
+#include "core/math/Random.hpp"
 #include "scene/Camera.hpp"
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
@@ -110,7 +110,7 @@ private:
     // Props are generated once with a fixed seed, so the scene is identical on
     // every run and every backend.
     void layout() {
-        Rng rng(0x9A11A);
+        otacon::Random rng(0x9A11A);
         for (int i = 0; i < kLayerCount; ++i) {
             const Layer& L = kLayers[i];
             props_[i].clear();
