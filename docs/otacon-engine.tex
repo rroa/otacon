@@ -97,6 +97,10 @@ src/engine/          # ---- Otacon engine (static lib 'otacon') ----
   render/            #   IRenderer seam; gl_modern/ gl_legacy/ vulkan/
   scene/             #   Entity, Node, Scene, Camera, Collision, Emitter
   App.cpp IGame.hpp  #   Engine runtime + the game contract
+
+src/game/            # ---- games on the engine (canabalt, dino, flappy) ----
+src/samples/         # ---- fifteen engine samples (exe 'samples') ----
+tests/smoke.cpp      # ---- headless engine self-tests ----
 \end{lstlisting}
 
 \chapter{The four seams}
@@ -135,9 +139,11 @@ Vulkan plumbing (\code{vulkanInstanceExtensions} / \code{createVulkanSurface}).
 config flag.
 
 \section{\code{IRenderer} --- drawing}
-See Chapter~\ref{ch:draw}. A backend implements only triangle submission and the
-frame lifecycle; all shapes are tessellated once in the shared \code{IRenderer}
-base, so every backend draws identical geometry.
+See Chapter~\ref{ch:draw}. A backend implements only triangle submission, the
+texture entry points and the frame lifecycle; all shapes are tessellated once in
+the shared \code{IRenderer} base, so every backend draws identical geometry.
+Anything beyond that is an \emph{optional capability} a backend may decline ---
+see \code{supportsShaders()} in Chapter~\ref{ch:samples}.
 
 \section{\code{IAudio} --- sound}
 \code{createAudio()} returns the platform audio device (CoreAudio on macOS, a
@@ -194,11 +200,17 @@ Call & Draws \\
 
 \noindent Textures are created from a decoded \code{Image} with
 \code{createTexture(img, repeat)} (nearest filtering, for crisp pixel art) and
-freed with \code{destroyTexture}. \textbf{The cross-backend contract:} a backend
-only implements \code{submitTriangles} (solid) and \code{submitTextured}, plus
-\code{beginFrame}/\code{endFrame}. Every shape above --- rectangles, oriented
-lines, outlines, the bitmap font --- is tessellated to triangles once, in the
-shared base class, so all backends rasterise byte-for-byte identical geometry.
+freed with \code{destroyTexture}. \code{updateTexture(tex, w, h, rgba)} replaces
+an existing texture's pixels at the same extent: it is the upload path for
+anything rasterised on the CPU each frame, and re-using the texture object
+avoids churning a GPU allocation every frame.
+
+\textbf{The cross-backend contract:} a backend implements only
+\code{submitTriangles} (solid) and \code{submitTextured}, the texture entry
+points, and \code{beginFrame}/\code{endFrame}. Every shape above --- rectangles,
+oriented lines, outlines, the bitmap font --- is tessellated to triangles once,
+in the shared base class, so all backends rasterise byte-for-byte identical
+geometry.
 
 \chapter{The scene system}
 The engine offers a small scene graph so rendering lives in one place ---
@@ -300,26 +312,39 @@ The contract:
         each backend applies its own orthographic projection.
   \item \textbf{Blending:} straight alpha, \code{SRC\_ALPHA / ONE\_MINUS\_SRC\_ALPHA}.
   \item \textbf{Primitive:} triangle lists only; no backend-specific shapes.
+  \item \textbf{Capabilities:} anything a backend cannot do is a question it is
+        asked, never an assumption. \code{supportsShaders()} is the only one so
+        far, and whatever is built on it must also work without it, so no screen
+        becomes reachable on some backends and not others.
 \end{itemize}
 
 \section{Per-backend notes}
 \begin{itemize}[nosep]
   \item \textbf{GL Legacy (2.1).} \code{glOrtho} + immediate-mode
         \code{glBegin/glColor/glVertex}; a compatibility context, no loader needed.
+        Fixed-function throughout, so there is no programmable stage at all and
+        \code{supportsShaders()} is false.
   \item \textbf{GL Modern (core 3.3).} A streamed VBO/VAO and a small
         vertex/fragment shader pair (the vertex shader does the logical$\to$clip
         projection); needs a core, forward-compatible context and a function
         loader --- shipped in-house in \code{gl\_modern/GLLoader} (no GLAD/GLEW).
+        The only backend with a reachable programmable stage, so it is the one
+        where \code{supportsShaders()} is true and user fragment effects compile.
   \item \textbf{Vulkan.} A full implementation: instance (MoltenVK portability),
         device, swapchain, render pass, solid + textured pipelines from embedded
         SPIR-V, per-frame dynamic vertex buffers, staging-buffer texture uploads,
         and per-frame/per-image synchronisation. Key difference, handled in the
         shader: Vulkan clip space already has $y$ pointing down, so it does
-        \emph{not} flip $y$ as the GL shaders do. Validation-clean.
+        \emph{not} flip $y$ as the GL shaders do. Validation-clean. Shaders are
+        pre-compiled to SPIR-V and embedded at build time, so there is no runtime
+        compiler and \code{supportsShaders()} is false; \code{updateTexture} is
+        supported, via a staging buffer and a one-time command per upload.
 \end{itemize}
 \textbf{Vulkan on macOS} uses MoltenVK via the Homebrew loader; launch through
 \code{tools/run.sh} (it sets \code{DYLD\_FALLBACK\_LIBRARY\_PATH} and
-\code{VK\_ICD\_FILENAMES}).
+\code{VK\_ICD\_FILENAMES}). It takes the executable to launch --- \code{canabalt}
+(the default), \code{dino}, \code{flappy} or \code{samples} --- so
+\code{tools/run.sh samples} is how the sample gallery is run on this backend.
 
 \chapter{Samples}\label{ch:samples}
 Fifteen sample screens (\code{src/samples/}, executable \code{samples}) exercise

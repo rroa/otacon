@@ -177,7 +177,12 @@ has `--demo`, which self-plays the newest build.
 
 ## Documentation
 
-The engine and Canabalt are documented separately (PDF + HTML). Rebuild the PDFs
+* **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the engine is put
+  together and why: the four seams, the renderer contract, the frame, the scene
+  model, extension points, and the deliberate non-goals. Start here; it reads in
+  the browser without building anything.
+
+The engine and Canabalt also have full manuals (PDF + HTML). Rebuild the PDFs
 with `tools/build-docs.sh` (needs `tectonic`).
 
 * **Engine (Otacon):** `docs/otacon-engine.pdf` / `docs/html/index.html` (source `docs/otacon-engine.tex`).
@@ -192,6 +197,7 @@ with `tools/build-docs.sh` (needs `tectonic`).
 | `src/game/dino/` | The Chromium T-Rex runner, with its own `assets/` |
 | `src/game/flappy/` | Flappy Bird, one `Scene` per build, with its own `assets/` |
 | `src/samples/` | Fifteen engine samples (exe `samples`) |
+| `docs/` | Architecture notes + the engine manual (source, PDF, HTML) |
 | `tests/smoke.cpp` | Headless engine self-tests (`otacon_smoke`) |
 | `config/build.cfg` | Backend / scalar selection |
 | `cmake/`, `tools/` | Config parser; run, docs and backend-diff scripts |

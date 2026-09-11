@@ -49,6 +49,7 @@
   <a href="#assets">Asset decoders</a>
   <a href="#audio">Audio</a>
   <a href="#gfx">Graphics backends</a>
+  <a href="#samples">Samples</a>
   <a href="#tools">Debug tools</a>
   <a href="#verify">Verification</a>
   <p style="color:var(--mut);font-size:13px;margin-top:16px">Also as <a href="../otacon-engine.pdf">otacon-engine.pdf</a>.</p>
@@ -123,7 +124,8 @@ class IGame {
 <tr><td><code>drawImageRotated(tex,cx,cy,w,h,deg,…)</code></td><td>a rotated textured quad</td></tr>
 <tr><td><code>drawText(text,x,y,scale,color)</code></td><td>a string in the built-in 3×5 bitmap font</td></tr>
 </table>
-<p>Textures come from a decoded <code>Image</code> via <code>createTexture(img, repeat)</code> (nearest filtering). <strong>The contract:</strong> a backend implements only <code>submitTriangles</code> / <code>submitTextured</code> + <code>beginFrame</code>/<code>endFrame</code>; every primitive is tessellated to triangles once in the base class, so all backends rasterise identical geometry.</p>
+<p>Textures come from a decoded <code>Image</code> via <code>createTexture(img, repeat)</code> (nearest filtering), and <code>updateTexture(tex, w, h, rgba)</code> replaces an existing texture’s pixels at the same extent — the upload path for anything rasterised on the CPU each frame.</p>
+<p><strong>The contract:</strong> a backend implements only <code>submitTriangles</code> / <code>submitTextured</code>, the texture entry points, and <code>beginFrame</code>/<code>endFrame</code>; every primitive is tessellated to triangles once in the base class, so all backends rasterise identical geometry. Anything beyond that is an <em>optional capability</em> a backend may decline — see <a href="#samples">Samples</a>.</p>
 
 <h2 id="scene">The scene system</h2>
 <p>A small scene graph keeps rendering in one place — the Scene renders the tree, nothing draws on the side.</p>
@@ -156,10 +158,22 @@ class IGame {
 <h2 id="gfx">Graphics backends</h2>
 <p>Every backend honours the same contract: logical 480×320 (origin top-left, <em>y</em> down), straight-alpha blending, triangle lists only.</p>
 <ul>
-  <li><strong>GL Legacy (2.1)</strong> — <code>glOrtho</code> + immediate mode; compatibility context, no loader.</li>
-  <li><strong>GL Modern (core 3.3)</strong> — streamed VBO/VAO + a small shader pair; needs a function loader, shipped in-house (<code>gl_modern/GLLoader</code>, no GLAD/GLEW).</li>
-  <li><strong>Vulkan</strong> — full instance/device/swapchain/pipelines from embedded SPIR-V; the shader does <em>not</em> flip <em>y</em> (Vulkan clip space is already y-down). Validation-clean; on macOS uses MoltenVK via <code>tools/run.sh</code>.</li>
+  <li><strong>GL Legacy (2.1)</strong> — <code>glOrtho</code> + immediate mode; compatibility context, no loader. Fixed-function throughout, so there is no programmable stage and <code>supportsShaders()</code> is false.</li>
+  <li><strong>GL Modern (core 3.3)</strong> — streamed VBO/VAO + a small shader pair; needs a function loader, shipped in-house (<code>gl_modern/GLLoader</code>, no GLAD/GLEW). The only backend with a reachable programmable stage, so the one where <code>supportsShaders()</code> is true.</li>
+  <li><strong>Vulkan</strong> — full instance/device/swapchain/pipelines from embedded SPIR-V; the shader does <em>not</em> flip <em>y</em> (Vulkan clip space is already y-down). Shaders are pre-compiled to SPIR-V and embedded at build time, so there is no runtime compiler and <code>supportsShaders()</code> is false; <code>updateTexture</code> works, via a staging buffer per upload. Validation-clean; on macOS uses MoltenVK via <code>tools/run.sh &lt;target&gt;</code>.</li>
 </ul>
+
+<h2 id="samples">Samples</h2>
+<p>Fifteen sample screens (<code>src/samples/</code>, executable <code>samples</code>) exercise the engine on its own. They link <code>otacon</code> and nothing else, and generate every texture they use in code — a sample that borrowed a game’s art would mean a seam had leaked. One gallery object hosts them all, so adding a sample is one <code>.cpp</code> plus one row in <code>Registry.cpp</code>.</p>
+<p class="note"><strong>Run:</strong> <code>./build/bin/samples</code> (<kbd>F1</kbd> for the list), or <code>--sample N</code> to open one directly. On the Vulkan backend use <code>./tools/run.sh samples</code>.</p>
+
+<h3>Per-pixel work and the shader seam</h3>
+<p>Two samples — 2D lighting, and the shader playground — need per-fragment control, which sits awkwardly against the cross-backend contract: only GL modern has a reachable programmable stage. The engine therefore offers both halves and lets a sample choose.</p>
+<ul>
+  <li><code>updateTexture(tex, w, h, rgba)</code> re-uploads an existing texture’s pixels. A sample shades a buffer in plain C++ and pushes it once per frame. Works on every backend, GL legacy included.</li>
+  <li><code>createEffect(fragmentSrc, log, logSize)</code> compiles a user fragment shader, with <code>useEffect</code> and <code>setEffectUniform</code> to drive it. The engine keeps the vertex stage, so the projection is unchanged and a user shader cannot move geometry out from under the contract. <code>supportsShaders()</code> reports whether the backend can do this at all.</li>
+</ul>
+<p>Every sample that uses an effect also carries the CPU path, so no sample is backend-exclusive and the <a href="#verify">cross-backend contract</a> still holds everywhere.</p>
 
 <h2 id="tools">Debug &amp; dev tools</h2>
 <table>
