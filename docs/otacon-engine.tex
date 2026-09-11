@@ -389,8 +389,11 @@ The contract:
 \code{tools/run.sh samples} is how the sample gallery is run on this backend.
 
 \chapter{Samples}\label{ch:samples}
-Fifteen sample screens (\code{src/samples/}, executable \code{samples}) exercise
-the engine on its own. They link \code{otacon} and nothing else, and generate
+Twenty sample screens (\code{src/samples/}, executable \code{samples}) exercise
+the engine on its own. The first fifteen are the canonical set; the rest cover
+the facilities those do not reach, on the rule that no subsystem ships without
+something that exercises it --- a facility nothing calls is indistinguishable
+from one that does not work. They link \code{otacon} and nothing else, and generate
 every texture they use in code --- a sample that borrowed a game's art would mean
 a seam had leaked. One gallery object hosts them all, so adding a sample is one
 \code{.cpp} plus one row in \code{Registry.cpp}.

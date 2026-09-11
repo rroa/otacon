@@ -1,7 +1,7 @@
-# Otacon — a didactic 2D game engine, three games, and fifteen samples
+# Otacon — a didactic 2D game engine, three games, and twenty samples
 
 A teaching project in C++17: a small, reusable, **in-house** 2D engine
-(**Otacon**), three games built on top of it, and fifteen samples that
+(**Otacon**), three games built on top of it, and twenty samples that
 demonstrate the engine on its own. Almost everything is written
 from scratch — math (including a Q16.16 fixed-point scalar), n-D vectors, a
 memory manager, time management, a debug runtime, the OpenGL function loader,
@@ -62,8 +62,10 @@ a `Scene`/`Node` tree, and a particle `Emitter`.
 
 ## Engine samples
 
-Fifteen screens demonstrating the engine itself, in one executable — paged the
-same way Canabalt pages modes and Flappy pages builds. They link `otacon` and
+Twenty screens demonstrating the engine itself, in one executable — paged the
+same way Canabalt pages modes and Flappy pages builds. Samples 1–15 are the
+canonical set; 16–20 cover the engine facilities the first fifteen do not reach,
+so that **no subsystem ships without something that exercises it**. They link `otacon` and
 nothing else: a sample that needed a game's code would mean a seam had leaked.
 Every texture they use is generated in code, so there are no sample assets.
 
@@ -99,6 +101,11 @@ video. Both are how the screenshots and the cross-backend comparison are made.
 | 13 | Shader Playground | the same effect either side of the renderer seam |
 | 14 | Procedural Dungeon | generation you can single-step, with a seed |
 | 15 | Stress Test | find the wall, and learn which wall it is |
+| 16 | Easing & Tweens | one shapes a 0..1, the other drives it over time |
+| 17 | Raycast & Shapes | the queries that are not the solver |
+| 18 | Broad Phase | same answer, far fewer pair tests |
+| 19 | Events & States | nothing here holds a pointer to anything else |
+| 20 | Sprite Atlas | one texture, many sprites, one bind |
 
 Adding a sample is one `.cpp` plus one row in `src/samples/Registry.cpp` — CMake
 globs the directory and the gallery reads the table.

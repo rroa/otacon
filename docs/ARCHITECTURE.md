@@ -479,6 +479,13 @@ and share the library unmodified.
 `src/samples/Registry.cpp`. CMake globs the directory; the gallery reads the
 table.
 
+**And a subsystem should not ship without one.** A facility nothing calls is
+indistinguishable from a facility that does not work, and the samples are the
+engine's executable documentation — so the rule here is that every subsystem has
+at least one user. That is checked, not assumed: `Timers`, `Tweens`, `Signal`,
+`EventBus`, `StateMachine`, `SpatialGrid`, `Raycast`, `Shapes` and `Atlas` all
+exist because a sample or a game needed them, and all of them now have one.
+
 **Add a graphics backend** — implement `submitTriangles`, `submitTextured`,
 `createTexture`, `updateTexture`, the frame hooks and `readPixels`. Leave
 `supportsShaders()` false unless there is a real programmable stage. Add a

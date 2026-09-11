@@ -24,6 +24,11 @@ Sample* makePathfindingBoids();
 Sample* makeShaderPlayground();
 Sample* makeProceduralDungeon();
 Sample* makeStressTest();
+Sample* makeEasingTweens();
+Sample* makeRayShapes();
+Sample* makeBroadPhase();
+Sample* makeEventsStates();
+Sample* makeSpriteAtlas();
 
 namespace {
 const SampleInfo kSamples[] = {
@@ -42,6 +47,11 @@ const SampleInfo kSamples[] = {
     {"Shader Playground",  "the same effect either side of the renderer seam",     makeShaderPlayground},
     {"Procedural Dungeon", "generation you can single-step, with a seed",          makeProceduralDungeon},
     {"Stress Test",        "find the wall, and learn which wall it is",            makeStressTest},
+    {"Easing & Tweens",    "one shapes a 0..1, the other drives it over time",     makeEasingTweens},
+    {"Raycast & Shapes",   "the queries that are not the solver",                  makeRayShapes},
+    {"Broad Phase",        "same answer, far fewer pair tests",                    makeBroadPhase},
+    {"Events & States",    "nothing here holds a pointer to anything else",        makeEventsStates},
+    {"Sprite Atlas",       "one texture, many sprites, one bind",                  makeSpriteAtlas},
 };
 } // namespace
 
