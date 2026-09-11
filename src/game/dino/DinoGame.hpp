@@ -1,4 +1,5 @@
 #pragma once
+#include "core/math/Random.hpp"
 #include "IGame.hpp"
 #include "platform/Window.hpp"
 #include "render/IRenderer.hpp"
@@ -94,7 +95,7 @@ private:
     otacon::Entity groundCollider_;
     std::vector<Obstacle> obstacles_;
     std::vector<Cloud> clouds_;
-    std::mt19937 rng_{0xD1A0};
+    otacon::Random rng_{0xD1A0};
 
     float currentSpeed_ = 6.f;
     float distance_ = 0;

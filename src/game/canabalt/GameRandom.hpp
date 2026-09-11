@@ -14,13 +14,16 @@
 //                      portable stand-in for arc4random. Every run differs, like
 //                      the shipping game.
 //
+// The generator itself is otacon::Random; what lives here is the game's choice
+// of WHICH source to use and the fixed seed that makes a run reproducible.
+//
 // Press F1 in-game to flip between them and watch the level regenerate. Things
 // worth discussing with the class: what "seeding" means, why a fixed seed gives
 // reproducibility, LCG quality vs. a real CSPRNG, and when each is the right
 // tool. ----------------------------------------------------------------------
 #pragma once
+#include "core/math/Random.hpp"
 #include <cstdint>
-#include <random>
 
 namespace canabalt {
 
@@ -28,41 +31,26 @@ class GameRandom {
 public:
     enum class Mode { Deterministic, Nondeterministic };
 
-    void setMode(Mode m) { mode_ = m; restart(); }
-    Mode mode() const { return mode_; }
-    const char* modeName() const {
-        return mode_ == Mode::Deterministic ? "DET(LCG)" : "RANDOM";
+    void setMode(Mode m) {
+        mode_ = m;
+        rng_.setSource(m == Mode::Deterministic ? otacon::Random::Source::Deterministic
+                                                : otacon::Random::Source::Entropy);
     }
+    Mode mode() const { return mode_; }
+    const char* modeName() const { return rng_.sourceName(); }
 
     // Re-seed for a fresh level. Deterministic -> the fixed seed (reproducible);
     // Nondeterministic -> fresh OS entropy (different each time).
-    void restart() {
-        if (mode_ == Mode::Deterministic) {
-            lcg_ = kFixedSeed;
-        } else {
-            std::random_device rd;
-            mt_.seed(rd());
-        }
-    }
+    void restart() { setMode(mode_); }
 
-    // Uniform float in [0, 1) — the one primitive the generator needs.
-    float unit() {
-        std::uint32_t bits;
-        if (mode_ == Mode::Deterministic) {
-            // Numerical Recipes LCG constants.
-            lcg_ = lcg_ * 1664525u + 1013904223u;
-            bits = lcg_;
-        } else {
-            bits = mt_();   // Mersenne Twister, entropy-seeded
-        }
-        return float(bits >> 8) / float(1u << 24);   // top 24 bits -> [0,1)
-    }
+    // Uniform float in [0, 1) -- the one primitive the generator needs.
+    float unit() { return rng_.unit(); }
 
 private:
-    static constexpr std::uint32_t kFixedSeed = 0xCA1Au;  // "CALA"-ish, fixed on purpose
-    Mode          mode_ = Mode::Deterministic;
-    std::uint32_t lcg_  = kFixedSeed;
-    std::mt19937  mt_;
+    // "CALA"-ish, fixed on purpose: the same seed regenerates the same city.
+    static constexpr std::uint32_t kFixedSeed = 0xCA1Au;
+    Mode           mode_ = Mode::Deterministic;
+    otacon::Random rng_{kFixedSeed};
 };
 
 } // namespace canabalt

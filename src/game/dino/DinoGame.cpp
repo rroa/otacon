@@ -103,8 +103,11 @@ Color DinoGame::clearColor() const {
 }
 
 void DinoGame::resetRun() {
-    if (deterministic_) rng_.seed(0xD1A0 + unsigned(seed_++));
-    else rng_.seed(std::random_device{}());
+    // Deterministic walks a seed sequence so each run differs but replays;
+    // otherwise the engine generator draws from OS entropy.
+    if (deterministic_) { rng_.setSource(otacon::Random::Source::Deterministic);
+                          rng_.seed(0xD1A0u + std::uint32_t(seed_++)); }
+    else rng_.setSource(otacon::Random::Source::Entropy);
 
     currentSpeed_ = hasMechanics() ? 6.f : 0.f;
     distance_ = score_ = horizonOffset_ = animTimer_ = restartTimer_ = 0.f;
@@ -288,13 +291,11 @@ bool DinoGame::playerHits(const Obstacle& obstacle) const {
 }
 
 float DinoGame::randRange(float lo, float hi) {
-    std::uniform_real_distribution<float> dist(lo, hi);
-    return dist(rng_);
+    return rng_.range(lo, hi);
 }
 
 int DinoGame::randInt(int lo, int hi) {
-    std::uniform_int_distribution<int> dist(lo, hi);
-    return dist(rng_);
+    return rng_.rangeI(lo, hi);
 }
 
 void DinoGame::render(IRenderer& r, const DebugRuntime& dbg) {

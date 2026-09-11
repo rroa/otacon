@@ -72,7 +72,9 @@ void WalkerNode::destroy(IRenderer* r) {
 void WalkerNode::place(float startX, int seed) {
     x_ = startX;
     y_ = 40.f + (float((seed * 2654435761u) >> 8 & 0xFFu) / 255.f) * 10.f;
-    rng_ ^= std::uint32_t(seed) * 0x9E3779B9u + 1u;
+    // Mix the caller's seed into this walker's own stream, so two walkers
+    // placed with different seeds diverge rather than marching in step.
+    rng_.seed(rng_.currentSeed() ^ (std::uint32_t(seed) * 0x9E3779B9u + 1u));
 }
 
 void WalkerNode::play(Anim a) { anim_ = a; frameTime_ = 0.f; }

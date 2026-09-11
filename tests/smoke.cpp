@@ -19,6 +19,7 @@
 #include "scene/Verlet.hpp"
 #include "scene/Steering.hpp"
 #include "scene/SpatialGrid.hpp"
+#include "scene/Raycast.hpp"
 #include "scene/Animator.hpp"
 #include <algorithm>
 #include <cmath>
@@ -413,6 +414,43 @@ static void testAnimator() {
     check(b.frame() == 3, "animator: a one-shot stops on its last frame");
 }
 
+
+// A ray must report not just THAT it hit but where and on which face -- the
+// normal is what a slide or a bounce needs, and a bare distance cannot give it.
+static void testRaycast() {
+    const Rect box(R(10), R(10), R(10), R(10));      // x 10..20, y 10..20
+
+    RayHit h = ray::vsRect({0, 15}, {40, 0}, box);   // straight at its left face
+    check(h.hit, "ray: hits a box in its path");
+    check(std::fabs(h.point.x - 10.f) < 0.01f, "ray: reports the entry point");
+    check(h.normal.x < -0.5f, "ray: reports the face that was struck");
+
+    check(!ray::vsRect({0, 100}, {40, 0}, box).hit, "ray: misses a box it passes by");
+    // Length matters: the same direction, too short to arrive.
+    check(!ray::vsRect({0, 15}, {5, 0}, box).hit, "ray: a short ray stops before the box");
+    // Axis-parallel rays make 1/dir infinite; that must fall out, not misbehave.
+    check(ray::vsRect({15, 0}, {0, 40}, box).hit, "ray: an axis-parallel ray still works");
+    check(ray::vsRect({15, 15}, {40, 0}, box).hit, "ray: starting inside counts as a hit");
+
+    // Nearest-hit selection, not first-in-array.
+    Entity near, far;
+    near.pos = {R(30), R(10)}; near.size = {R(10), R(10)}; near.solid = true;
+    far.pos  = {R(60), R(10)}; far.size  = {R(10), R(10)}; far.solid = true;
+    std::vector<Entity*> group = {&far, &near};      // deliberately far-first
+    RayHit g = ray::vsGroup({0, 15}, {100, 0}, group);
+    check(g.hit && g.entity == &near, "ray: vsGroup returns the nearest, not the first");
+
+    // DDA across a tilemap, and the line-of-sight question it stands in for.
+    TileMap map;
+    map.resize(16, 8, 0);
+    map.firstSolid = 1;
+    for (int y = 0; y < 8; ++y) map.set(6, y, 1);    // a wall at column 6
+    RayHit t = ray::vsTileMap({8.f, 40.f}, {200.f, 0.f}, map, 16.f);
+    check(t.hit && t.tileX == 6, "ray: DDA finds the first solid tile");
+    check(!ray::lineOfSight({8.f, 40.f}, {200.f, 40.f}, map, 16.f), "ray: the wall blocks line of sight");
+    check(ray::lineOfSight({8.f, 40.f}, {80.f, 40.f}, map, 16.f), "ray: clear ground does not");
+}
+
 int main() {
     // Unbuffered: if a check crashes the process, a fully-buffered stdout would
     // discard every line printed up to that point and the log would be empty --
@@ -429,6 +467,7 @@ int main() {
     testSpatialGrid();
     testFlock();
     testAnimator();
+    testRaycast();
     testGravityLanding();
     testPlayerJump();
     testComputeVelocity();

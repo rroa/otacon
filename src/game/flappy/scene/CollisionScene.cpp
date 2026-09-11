@@ -43,11 +43,11 @@ void CollisionScene::enter() {
     WorldScene::enter();       // bird/pipes reset, distance 0, day/night roll
     crashed_ = false;
     // Roll cosmetic skins for this run and repoint the base classes' active handles.
-    const int bc = std::uniform_int_distribution<int>(0, 2)(skinRng_);
+    const int bc = skinRng_.rangeI(0, 3);
     birdFrames_ = (bc == 1 && redBird_[0])  ? redBird_
                 : (bc == 2 && blueBird_[0]) ? blueBird_
                                             : yellowBird_;
-    const int pc = std::uniform_int_distribution<int>(0, 1)(skinRng_);
+    const int pc = skinRng_.rangeI(0, 2);
     pipeTex_ = (pc == 1 && redPipe_) ? redPipe_ : greenPipe_;
 }
 

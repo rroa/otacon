@@ -6,6 +6,7 @@
 // (the bird's X is pinned) that sells the motion. Drawn as plain geometry; no
 // collision, no scoring — just experimentation. Pipe texture comes in Build 4.
 #pragma once
+#include "core/math/Random.hpp"
 #include "flappy/scene/TextureScene.hpp"
 #include "flappy/sim/Pipe.hpp"
 #include <random>
@@ -34,7 +35,7 @@ protected:
 private:
     void spawn(float x);                 // append a pipe pair with a random gap
 
-    std::mt19937      rng_{0xF1A99u};    // fixed seed → deterministic captures
+    otacon::Random    rng_{0xF1A99u};    // fixed seed → deterministic captures
     mutable char      status_[64]{};
 };
 

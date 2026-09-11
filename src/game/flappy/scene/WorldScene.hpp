@@ -6,6 +6,7 @@
 // distance* — the precursor to scoring — accumulating how far the world has
 // scrolled and showing it at the top. Still no collision.
 #pragma once
+#include "core/math/Random.hpp"
 #include "flappy/scene/FlapScene.hpp"
 #include <random>
 
@@ -35,7 +36,7 @@ private:
     otacon::TextureHandle dayTex_ = 0, nightTex_ = 0, baseTex_ = 0;
     float        distance_ = 0.f;          // logical px the world has scrolled
     bool         night_    = false;
-    std::mt19937 bgRng_{0xB9D1u};          // NOT reseeded per run, so day/night varies across resets
+    otacon::Random bgRng_{0xB9D1u};        // NOT reseeded per run, so day/night varies across resets
     mutable char status_[64]{};
 };
 

@@ -6,9 +6,8 @@ namespace flappy {
 
 void PipesScene::spawn(float x) {
     // Keep the whole gap above the ground line (its bottom edge clears kGroundY).
-    std::uniform_real_distribution<float> gap(
-        cfg::kPipeMargin, cfg::kGroundY - cfg::kPipeGap - cfg::kPipeMargin);
-    pipes_.push_back({x, gap(rng_)});
+    pipes_.push_back({x, rng_.range(cfg::kPipeMargin,
+                                    cfg::kGroundY - cfg::kPipeGap - cfg::kPipeMargin)});
 }
 
 void PipesScene::enter() {

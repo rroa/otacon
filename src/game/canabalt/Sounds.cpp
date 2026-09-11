@@ -42,11 +42,11 @@ void Sounds::load(IAudio* audio, const char* assetDir) {
     titleMusic_ = audio_->createSound(loadCaf((mdir + "run-title.caf").c_str()));
 }
 
-// Numerical-Recipes LCG — a private stream just for picking SFX variants.
+// A private stream just for picking SFX variants, so which footstep plays can
+// never shift the stream the level generator is reading.
 SoundId Sounds::pick(const std::vector<SoundId>& g) {
     if (g.empty()) return 0;
-    rng_ = rng_ * 1664525u + 1013904223u;
-    return g[(rng_ >> 16) % g.size()];
+    return g[std::size_t(rng_.rangeI(0, int(g.size())))];
 }
 
 void Sounds::one(SoundId id, float gain) { if (audio_ && id) audio_->play(id, gain); }

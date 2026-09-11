@@ -96,7 +96,7 @@ src/engine/          # ---- Otacon engine (static lib 'otacon') ----
   audio/             #   IAudio seam, software Mixer, CoreAudio / null backend
   platform/          #   IWindow seam; glfw/ and sdl2/ backends
   render/            #   IRenderer seam; gl_modern/ gl_legacy/ vulkan/
-  scene/             #   Entity, Node, Scene, Camera, Collision, Emitter,
+  scene/             #   Entity, Node, Scene, Camera, Collision, Raycast, Emitter,
                      #   TileMap, Animator, Verlet, PathFinder, Steering,
                      #   SpatialGrid
   App.cpp IGame.hpp  #   Engine runtime + the game contract
@@ -272,7 +272,9 @@ scale used by the slow-mo / fast-forward debug control.
 \section{Simulation, AI and procedural helpers}
 Beyond \code{Entity} and the AABB solver, the scene layer carries the subsystems
 a 2D game reaches for: \code{SpatialGrid} (a uniform-grid broad phase, so
-collision need not be $O(n^2)$), \code{Verlet} (position-based dynamics for
+collision need not be $O(n^2)$), \code{Raycast} (ray/AABB by the slab method,
+ray/tilemap by a DDA walk, and the line-of-sight query they stand in for),
+\code{Verlet} (position-based dynamics for
 ropes, bridges and cloth), \code{PathFinder} (A* over a \code{TileMap}, with the
 heuristic exposed as the knob it really is), \code{Steering} (flocking plus
 seek/flee/arrive), \code{TileMap} and \code{Animator}. \code{core/math} adds

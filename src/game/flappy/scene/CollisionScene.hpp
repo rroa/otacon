@@ -10,6 +10,7 @@
 // colour (green/red). It owns the extra colour textures and just repoints the
 // base classes' active handles — no draw code is duplicated.
 #pragma once
+#include "core/math/Random.hpp"
 #include "flappy/scene/WorldScene.hpp"
 #include <random>
 
@@ -39,7 +40,7 @@ private:
     otacon::TextureHandle redBird_[3]  = {0, 0, 0};
     otacon::TextureHandle blueBird_[3] = {0, 0, 0};
     otacon::TextureHandle redPipe_     = 0;
-    std::mt19937 skinRng_{0x5C1Du};    // not reseeded per run → skins vary across resets
+    otacon::Random skinRng_{0x5C1Du};  // not reseeded per run → skins vary across resets
     mutable char status_[48]{};
 };
 

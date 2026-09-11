@@ -1,4 +1,5 @@
 #include "canabalt/Decoration.hpp"
+#include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <string>
 
@@ -43,7 +44,8 @@ void Decoration::draw(IRenderer& r, const Camera& cam, float wx, float wy, float
     Vec2f o = cam.screenPoint({R(wx), R(wy)}, {1, 1});   // roof top-left in screen space
     const float ox = o.x, oy = o.y, sw = ww;
     std::uint32_t st = seed;
-    auto rnd = [&]() { st = st * 1664525u + 1013904223u; return float(st >> 8) / float(1u << 24); };
+    otacon::Random prng(st);
+    auto rnd = [&]() { return prng.unit(); };   // engine generator, seeded per piece
     auto img = [&](TextureHandle t, float x, float y, float w, float h) { if (t) r.drawImage(t, x, y, w, h); };
 
     // AC units along the parapet.

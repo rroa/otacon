@@ -7,6 +7,7 @@
 // and its own little random stream (kept separate from the level generator's RNG
 // so they never disturb which buildings get generated).
 #pragma once
+#include "core/math/Random.hpp"
 #include "scene/Node.hpp"
 #include "scene/Emitter.hpp"
 #include "render/IRenderer.hpp"
@@ -29,7 +30,7 @@ public:
     void render(otacon::IRenderer& r, const otacon::Camera& cam) const override;
 
 private:
-    float rand01() { rng_ = rng_ * 1664525u + 1013904223u; return float(rng_ >> 8) / float(1u << 24); }
+    float rand01() { return rng_.unit(); }
 
     otacon::TextureHandle tex_ = 0;
     int   w_ = 0, h_ = 0;
@@ -38,7 +39,7 @@ private:
     float timer_ = 0.f, limit_ = 14.f;
     bool  fired_ = false;                  // warped in this... consumed for the SFX
     otacon::Camera* quakeCam_ = nullptr;
-    std::uint32_t rng_ = 0x1357AceFu;
+    otacon::Random rng_{0x1357AceFu};
 };
 
 // A giant walking mech (Walker.m). It idles, occasionally marches a little, and
@@ -56,7 +57,7 @@ public:
 
 private:
     enum class Anim { Idle, Walk, Fire };
-    float rand01() { rng_ = rng_ * 1664525u + 1013904223u; return float(rng_ >> 8) / float(1u << 24); }
+    float rand01() { return rng_.unit(); }
     void  play(Anim a);
     void  fireCannon();
     int   frame() const;
@@ -71,7 +72,7 @@ private:
     bool  firing_ = false;
     float walkTimer_ = 0.f, idleTimer_ = 0.f;
     otacon::Emitter smoke_;            // cannon / exhaust plume
-    std::uint32_t rng_ = 0x2468BdF0u;
+    otacon::Random rng_{0x2468BdF0u};
 };
 
 // A tall steel girder that sweeps across the foreground (BG.m with random=YES).
@@ -87,13 +88,13 @@ public:
     void render(otacon::IRenderer& r, const otacon::Camera& cam) const override;
 
 private:
-    float rand01() { rng_ = rng_ * 1664525u + 1013904223u; return float(rng_ >> 8) / float(1u << 24); }
+    float rand01() { return rng_.unit(); }
 
     otacon::TextureHandle tex_ = 0;
     int   w_ = 0, h_ = 0;
     float x_ = 3000.f;
     float sfx_ = 3.f;                  // horizontal parallax factor (re-rolled on wrap)
-    std::uint32_t rng_ = 0x0F1E2D3Cu;
+    otacon::Random rng_{0x0F1E2D3Cu};
 };
 
 } // namespace canabalt

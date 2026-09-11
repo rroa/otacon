@@ -4,6 +4,7 @@
 // the level-generation stream is never touched. All decoding is in-house (CAF);
 // playback goes through the engine's IAudio device.
 #pragma once
+#include "core/math/Random.hpp"
 #include "audio/IAudio.hpp"
 #include <cstdint>
 #include <vector>
@@ -49,7 +50,7 @@ private:
     otacon::SoundId music_[kTracks] = {0, 0, 0}, titleMusic_ = 0;
     int  track_ = 0;
     bool playingGameplay_ = false;
-    std::uint32_t rng_ = 0x9E3779B9u;
+    otacon::Random rng_{0x9E3779B9u};
 };
 
 } // namespace canabalt

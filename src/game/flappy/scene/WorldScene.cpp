@@ -29,7 +29,7 @@ void WorldScene::init(otacon::GameContext& ctx) {
 void WorldScene::enter() {
     FlapScene::enter();
     distance_ = 0.f;
-    night_ = std::uniform_int_distribution<int>(0, 1)(bgRng_) == 1;   // day or night, at random
+    night_ = bgRng_.chance(0.5f);   // day or night, at random
 }
 
 void WorldScene::update(otacon::Real dt) {

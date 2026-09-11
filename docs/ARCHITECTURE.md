@@ -353,6 +353,7 @@ renderer, which is why every backend gets the same visualisation for free.
 | | |
 |---|---|
 | `Entity` + `Collision` | AABB bodies, axis-separated, swept hulls |
+| `Raycast` | ray vs AABB (slab), ray vs tilemap (DDA), line of sight |
 | `SpatialGrid` | uniform-grid broad phase, so collision need not be O(n²) |
 | `Verlet` | position-based dynamics: ropes, bridges, cloth |
 | `PathFinder` | A* over a `TileMap`, with the heuristic as the knob |
@@ -360,6 +361,13 @@ renderer, which is why every backend gets the same visualisation for free.
 | `Emitter` | particles, as ordinary entities |
 | `TileMap` | a grid of indices, drawn with view culling |
 | `Animator` | sprite-sheet clips and the clock that drives them |
+
+`Collision` answers "these two overlap, push them apart". `Raycast` answers the
+other question a game asks constantly — "what is the first thing along this line,
+and where exactly did I hit it?" — which is behind enemy line of sight, hitscan
+weapons, ground probes, mouse picking and an AI's "is that jump survivable" test.
+It returns the surface normal, not just a distance, because that is what a slide
+or a bounce needs.
 
 Two of these carry a lesson beyond their API. `SpatialGrid` exists because
 `collideWithGroup` tests every pair: fine at thirty bodies, quietly ruinous at

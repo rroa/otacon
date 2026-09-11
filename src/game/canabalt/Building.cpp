@@ -1,4 +1,5 @@
 #include "canabalt/Building.hpp"
+#include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <cstdio>
 #include <string>
@@ -91,7 +92,8 @@ void Building::drawHall(IRenderer& r, const Camera& cam, float wx, float wy, flo
     if (doors && doors_) {
         const int slots = int(w / kTile - 3.f) / 4;
         std::uint32_t rng = seed ? seed : 1u;
-        auto next = [&] { rng = rng * 1664525u + 1013904223u; return float(rng >> 8) / float(1u << 24); };
+        otacon::Random prng(rng);
+        auto next = [&] { return prng.unit(); };   // engine generator
         for (int i = 1; i < slots; ++i) {
             if (next() > 0.65f) continue;
             const int frame = int(next() * 4.f) & 3;

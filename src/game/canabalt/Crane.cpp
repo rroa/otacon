@@ -1,4 +1,5 @@
 #include "canabalt/Crane.hpp"
+#include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <string>
 
@@ -38,7 +39,8 @@ void Crane::draw(IRenderer& r, const Camera& cam, float wx, float wy, float ww, 
     const float x = s.x, y = s.y, w = ww, h = wh;
     const float T = kTile;
     std::uint32_t st = seed;
-    auto rnd = [&]() { st = st * 1664525u + 1013904223u; return float(st >> 8) / float(1u << 24); };
+    otacon::Random prng(st);
+    auto rnd = [&]() { return prng.unit(); };   // engine generator, seeded per piece
     const bool left = rnd() < 0.5f;
     const float cx = w * 0.35f;
     const float pr = rnd();

@@ -1,4 +1,5 @@
 #include "canabalt/Billboard.hpp"
+#include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <cstdio>
 #include <string>
@@ -60,7 +61,8 @@ void Billboard::draw(IRenderer& r, const Camera& cam, float wx, float wy, float 
     r.drawImage(botR_, x + w - 2 * T, y - 2 * T, 31, 32);
     // One random damage decal in the panel.
     std::uint32_t st = seed;
-    auto rnd = [&]() { st = st * 1664525u + 1013904223u; return float(st >> 8) / float(1u << 24); };
+    otacon::Random prng(st);
+    auto rnd = [&]() { return prng.unit(); };   // engine generator, seeded per piece
     if (rnd() < 0.5f) {
         int d = int(rnd() * 3) % 3;
         if (dmg_[d]) r.drawImage(dmg_[d], x + 2 * T + rnd() * (w - 4 * T - 64),
