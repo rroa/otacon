@@ -154,6 +154,13 @@ target_include_directories(samples PRIVATE ${CMAKE_SOURCE_DIR}/src/samples)
 target_link_libraries(samples PRIVATE otacon)
 
 # ============================================================================
+#  isopack — asset tool: downsample + trim + atlas an isometric sprite set.
+#  Links the engine for its PNG codec; no window, no renderer.
+# ============================================================================
+add_executable(isopack ${CMAKE_SOURCE_DIR}/tools/isopack/main.cpp)
+target_link_libraries(isopack PRIVATE otacon)
+
+# ============================================================================
 #  Headless engine smoke tests (no window). Build & run: otacon_smoke
 # ============================================================================
 if(EXISTS ${CMAKE_SOURCE_DIR}/tests/smoke.cpp)
