@@ -1,0 +1,230 @@
+\documentclass[11pt]{report}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!50!black}
+
+\definecolor{codebg}{RGB}{245,245,248}
+\lstset{
+  basicstyle=\ttfamily\small, backgroundcolor=\color{codebg},
+  breaklines=true, frame=single, rulecolor=\color{gray!40},
+  columns=fullflexible, keepspaces=true, showstringspaces=false
+}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\textbf{Canabalt}\\[4pt]\large A didactic C++ port of the one-button runner ---
+       build, play \& mechanics}
+\author{Built on the Otacon engine (see \code{docs/otacon-engine.pdf})}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\chapter{About Canabalt}
+\emph{Canabalt} is the original one-button infinite runner: a lone figure sprints
+across the rooftops of a collapsing city, and the only control is \textbf{jump}.
+Hold longer to jump higher; clear the gaps; survive as far as you can. There is no
+winning --- only your distance in metres, and your best.
+
+This is a teaching-oriented C++ port. The source of truth is the official
+open-source release (\code{ericjohnson/canabalt-ios}), an Objective-C game on the
+\code{flixel-ios} framework, kept under \code{reference/} and studied closely so
+the port does \textbf{not diverge} from the original's feel. The game is written
+entirely against the Otacon engine through its \code{IGame} interface; everything
+game-specific --- code, assets and these docs --- lives under
+\code{src/game/canabalt/}.
+
+\section{Faithfulness}
+The simulation reproduces flixel's exact integrator, velocity model, swept-AABB
+collision and follow camera, plus Canabalt's exact player physics constants
+(Chapter~\ref{ch:mech}). With the default float scalar the run is deterministic
+and reproducible; the same seed yields the same city every time.
+
+\chapter{Building and running}
+Canabalt is the \code{canabalt} executable; it links the Otacon static library.
+
+\section{macOS / Linux}
+\begin{lstlisting}[language=bash]
+cmake -S . -B build            # first configure fetches the window library
+cmake --build build -j8
+./build/bin/canabalt
+\end{lstlisting}
+
+\section{Windows}
+\textbf{Visual Studio:} open the folder (it has \code{CMakeLists.txt}); VS
+configures automatically. Pick the \code{canabalt.exe} target and Run.\\
+\textbf{VS~Code:} with the \emph{CMake Tools} extension, select a kit, then Build
+and Run. Or from a terminal: \code{cmake -S . -B build \&\& cmake --build build}.
+
+\section{Vulkan note}
+If built with the Vulkan backend on macOS, launch through \code{tools/run.sh}
+(it sets the MoltenVK loader environment). Any backend plays identically.
+
+\chapter{How to play}
+You start on the \textbf{title screen}; press \textbf{jump} to begin. From then on
+you run automatically and ever faster --- tap jump to hop a gap, hold it for a
+higher leap. Falling into a gap, smacking a wall, or being caught by a hazard ends
+the run.
+
+\begin{itemize}[nosep]
+  \item \textbf{Distance.} The metres-run counter sits top-right.
+  \item \textbf{Game over.} On death a panel shows how far you ran and how you
+        died (``\dots before falling to your death'', ``\dots smashing into a
+        wall'', ``\dots turning into a fine mist''). Press \textbf{jump} or
+        \code{R} to run again, or click \textbf{EXIT} (top-right) to return to the
+        title.
+  \item \textbf{High score.} Beat your best and a \textbf{NEW RECORD} badge
+        appears; the best distance is saved to
+        \code{src/game/canabalt/assets/highscore.dat} and persists between
+        sessions.
+\end{itemize}
+
+\section{Controls}
+\begin{longtable}{ll}
+\toprule
+Key / input & Action \\
+\midrule
+\endhead
+Space / W / Up / Left-click & Jump (hold for a higher jump); start; retry \\
+\code{R} & Retry the current run \\
+Click \textbf{EXIT} (on game over) & Back to the title \\
+\code{1} \dots \code{4} & Jump directly to that mode \\
+\code{]} or \code{.} \;/\; \code{[} or \code{,} & Next / previous mode \\
+\code{F9} & Mute / unmute all audio \\
+\code{F10} & Cycle the music track (Run / Daring Escape / Mach Runner) \\
+\code{M} & Show / hide the mouse cursor \\
+\code{`} (backtick) & Hide / show ALL dev UI --- clean play \\
+\code{Esc} & Quit \\
+\bottomrule
+\end{longtable}
+The teaching toggles (\code{F1}--\code{F8}, \code{H}, \code{+/-}, \code{C}, \code{G},
+\dots) are documented with the modes below and in the engine manual; the bottom
+legend always shows the live state. Press \code{`} any time to hide all of it and
+just play.
+
+\chapter{The incremental modes}
+The build is staged as four runnable ``modes'' that show the game assembled from a
+single box up to the full runner. Cycle with \code{]}/\code{[}, or jump straight to
+one with the number keys \code{1}--\code{4}.
+\begin{enumerate}[nosep]
+  \item \textbf{Static Box} --- a box on the ground. Geometry + camera only.
+  \item \textbf{Gravity} --- a box falls and lands on a platform (the integrator
+        and collision). Press Space to drop again; press \code{E} to burst
+        particles at the cursor.
+  \item \textbf{Run \& Jump} --- the real \code{Player} auto-runs on flat ground;
+        hold to jump; the camera follows. Full original feel, no hazards.
+  \item \textbf{Infinite Run} --- the real game: the ported level generator, the
+        parallax city, hazards, sprites, sound and the title/score flow.
+\end{enumerate}
+
+\chapter{Game mechanics}\label{ch:mech}
+\section{Player physics (from \code{Player.m})}
+\begin{longtable}{ll}
+\toprule
+Quantity & Value \\
+\midrule
+\endhead
+Hitbox & $16 \times 18$ (sprite $30\times30$, offset $6,12$) \\
+Start velocity $x$ & 125 \\
+Gravity (accel.\ $y$) & 1200 \\
+Drag $x$ & 640 \\
+Max velocity & $(1000, 360)$ \\
+Accel.\ $x$ ramp & $60/36/24/12/4$ as speed rises (fast then tapering) \\
+Jump limit & $v_x / (1000 \cdot 2.5)$, capped at $0.35$\,s \\
+Short / full jump $v_y$ & $-0.65\cdot360$ / $-360$ \\
+Fall death & $y > 484$ \\
+Wall death & accel.\ $x \to 0$, $v_x \to 0$ \\
+\bottomrule
+\end{longtable}
+The hold-to-jump window scales with speed: the faster you run, the higher you can
+leap. A hard landing makes the runner stumble and roll.
+
+\section{The level generator (\code{Sequence.cpp})}
+A faithful port of the original \code{Sequence.m}. Exactly two ``sequences''
+leapfrog: each owns one wide building, and when one scrolls off the left it
+regenerates just past the other. Each new building's gap, minimum width and
+vertical drop are derived from your current \code{velocity.x} and \code{jumpLimit}
+--- so the level gets harder precisely as you get faster, exactly like the
+original. The first building is a fixed launch hallway.
+
+Special building archetypes are generated by type, each with its own collision
+shape, art and behaviour:
+\begin{itemize}[nosep]
+  \item \textbf{Hallway} --- a tunnel you run through; its windows smash (glass +
+        sound) as you pass, and doors line the back wall (the launch tunnel has none).
+  \item \textbf{Collapse} --- the roof sinks the moment you step on it; you ride it
+        down and must leap off before it drops away.
+  \item \textbf{Bomb} --- a bomb whistles down and detonates on the roof; touching
+        it is fatal.
+  \item \textbf{Crane} --- a metal beam you cross like a platform (footsteps ring
+        out as metal).
+  \item \textbf{Billboard} --- a thin catwalk ledge under a damaged sign.
+  \item \textbf{Leg} --- a giant mech leg stomps down and crushes the building below.
+\end{itemize}
+Rooftops also scatter obstacles (crates you stumble over) and pigeons that flush as
+you approach. Roof and floor caps, wall and window styles all vary per building.
+
+\section{Background \& foreground extras}
+Distant Easter eggs ride the skyline --- a mothership, a dark tower, two marching
+mech \emph{walkers} (which vent smoke), and a jet that periodically streaks past
+and rattles the screen --- while a steel girder occasionally sweeps the foreground.
+A startup screen-quake (the collapsing city) shakes the camera as a run begins.
+
+\chapter{Presentation}
+\section{Progressive sprite reveal (\code{F6} / \code{F8})}
+The world can be peeled between pure collision geometry and full sprites one layer
+at a time. \code{F6} cycles the level --- \textbf{geometry} (everything is boxes)
+$\to$ \textbf{player} (the runner becomes its \code{player2.png} sprite) $\to$
+\textbf{buildings} (rooftops tile a wall texture) $\to$ \textbf{background}
+(parallax skyline) $\to$ \textbf{full sprites} (textured particles) --- and
+\code{F8} jumps straight between all-geometry and all-sprites. \code{C} overlays
+the collision boxes at any level, so you can see the geometry under the art.
+
+\section{Sound \& music}
+Sound effects (footsteps, jumps, window smashes, glass, the bomb/leg/collapse
+hazards, the jet, pigeon flaps, the death thud) are decoded in-house from the
+original \code{.caf} files and mixed live. Three looping music tracks are included;
+\code{F9} mutes all audio and \code{F10} cycles the track. The title screen has its
+own theme.
+
+\chapter{Assets}
+All game assets live under \code{src/game/canabalt/assets/} and are loaded through
+the engine's in-house decoders --- nothing is baked into the binary:
+\begin{itemize}[nosep]
+  \item \code{images/} --- PNGs (player sheet, HUD glyphs, building/crane/billboard
+        tiles, UI: title, game-over, paused, cursor). Decoded by the in-house PNG
+        decoder; \code{images/raw/} holds the un-atlased source art.
+  \item \code{sound/} --- sound effects as $22050$\,Hz mono $16$-bit LPCM
+        \code{.caf}. \code{convert.sh} regenerates them from the \code{.mp3}
+        sources via \code{afconvert}.
+  \item \code{music/} --- the looping tracks, converted to \code{.caf} the same way.
+\end{itemize}
+
+\chapter{Teaching toggles (quick reference)}
+These flip engine/game behaviour live so the effect is visible at once; the HUD's
+second line shows the current state.
+\begin{longtable}{ll}
+\toprule
+Key & Effect \\
+\midrule
+\endhead
+\code{F1} & RNG: deterministic (fixed-seed LCG) vs.\ entropy-seeded; regenerates the city \\
+\code{F2}/\code{F3}/\code{F4} & Startup screen-quake on-off / weaker / stronger \\
+\code{F5} & Variable vs.\ fixed simulation timestep \\
+\code{F6}/\code{F8} & Sprite-reveal level / all-geometry$\leftrightarrow$all-sprites \\
+\code{F7} & Particles on / off \\
+\code{F9}/\code{F10} & Sound mute / music track \\
+\code{H} & Perf + memory overlay; hover an entity to inspect it \\
+\code{+}/\code{-} & Simulation time scale (slow-mo / fast-forward) \\
+\code{C}/\code{X}/\code{Z}/\code{G} & Colliders / parallax / wireframe / grid overlays \\
+\code{P}/\code{O} & Pause / single-step \\
+\code{F12} & Save a PNG screenshot \\
+\bottomrule
+\end{longtable}
+
+\end{document}

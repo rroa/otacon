@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canabalt — Manual</title>
+<style>
+  :root { --bg:#16171c; --panel:#1f2129; --ink:#e7e7ea; --mut:#9aa0ad; --acc:#5ad1c9; --acc2:#f0c020; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         background:var(--bg); color:var(--ink); }
+  header { padding:48px 24px; background:linear-gradient(135deg,#2b2b33,#16171c); border-bottom:2px solid var(--acc); }
+  header h1 { margin:0 0 6px; font-size:30px; letter-spacing:.3px; }
+  header p { margin:0; color:var(--mut); }
+  .wrap { max-width:980px; margin:0 auto; padding:0 24px; display:grid; grid-template-columns:220px 1fr; gap:28px; }
+  nav { position:sticky; top:0; align-self:start; padding-top:28px; }
+  nav a { display:block; color:var(--mut); text-decoration:none; padding:4px 0; font-size:14px; }
+  nav a:hover { color:var(--acc); }
+  main { padding:28px 0 80px; min-width:0; }
+  h2 { margin-top:40px; border-bottom:1px solid #333; padding-bottom:6px; color:var(--acc); }
+  h3 { color:var(--acc2); margin-top:26px; }
+  code { background:var(--panel); padding:1px 5px; border-radius:4px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13.5px; }
+  pre { background:var(--panel); padding:14px 16px; border-radius:8px; overflow:auto; border:1px solid #2b2d36; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; width:100%; margin:14px 0; }
+  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid #2b2d36; vertical-align:top; }
+  th { color:var(--acc); font-size:14px; }
+  .kbd { display:inline-block; background:#2b2d36; border:1px solid #3a3d48; border-bottom-width:2px;
+         border-radius:5px; padding:1px 7px; font-family:ui-monospace,monospace; font-size:13px; }
+  .note { background:#1d2630; border-left:3px solid var(--acc); padding:10px 14px; border-radius:0 6px 6px 0; color:var(--mut); }
+  a { color:var(--acc); }
+  @media (max-width:760px){ .wrap{grid-template-columns:1fr;} nav{position:static;} }
+</style>
+</head>
+<body>
+<header>
+  <h1><span style="color:var(--acc)">Canabalt</span></h1>
+  <p>A didactic C++ port of the one-button runner — build, play &amp; mechanics. Built on the <a href="../../../../../docs/html/index.html">Otacon engine</a>.</p>
+</header>
+<div class="wrap">
+<nav>
+  <a href="#about">About</a>
+  <a href="#build">Building &amp; running</a>
+  <a href="#play">How to play</a>
+  <a href="#controls">Controls</a>
+  <a href="#modes">The modes</a>
+  <a href="#mech">Game mechanics</a>
+  <a href="#present">Presentation</a>
+  <a href="#assets">Assets</a>
+  <a href="#toggles">Teaching toggles</a>
+  <p style="color:var(--mut);font-size:13px;margin-top:16px">Also as <a href="../canabalt.pdf">canabalt.pdf</a>.</p>
+</nav>
+<main>
+
+<h2 id="about">About Canabalt</h2>
+<p><em>Canabalt</em> is the original one-button infinite runner: a lone figure sprints across the rooftops of a collapsing city, and the only control is <strong>jump</strong>. Hold longer to jump higher; clear the gaps; survive as far as you can. There is no winning — only your distance in metres, and your best.</p>
+<p>This is a teaching-oriented C++ port. The source of truth is the official OSS release (<code>ericjohnson/canabalt-ios</code>, Objective-C on <code>flixel-ios</code>), kept under <code>reference/</code> and studied closely so the port does <strong>not diverge</strong> from the original's feel. The game is written entirely against the Otacon engine via its <code>IGame</code> interface; everything game-specific — code, assets and these docs — lives under <code>src/game/canabalt/</code>.</p>
+<p class="note"><strong>Faithful.</strong> The simulation reproduces flixel's exact integrator, velocity model, swept-AABB collision and follow camera, plus Canabalt's exact player physics constants. With the default float scalar, a run is deterministic — the same seed yields the same city every time.</p>
+
+<h2 id="build">Building &amp; running</h2>
+<p>Canabalt is the <code>canabalt</code> executable; it links the Otacon static library.</p>
+<pre><code>cmake -S . -B build          # first configure fetches the window library
+cmake --build build -j8
+./build/bin/canabalt</code></pre>
+<p><strong>Windows:</strong> open the folder in Visual Studio (it configures from <code>CMakeLists.txt</code>) and run the <code>canabalt.exe</code> target, or use VS&nbsp;Code's CMake Tools. <strong>Vulkan on macOS:</strong> launch via <code>tools/run.sh</code> (sets the MoltenVK loader). Any backend plays identically.</p>
+
+<h2 id="play">How to play</h2>
+<p>You start on the <strong>title screen</strong>; press <strong>jump</strong> to begin. From then on you run automatically and ever faster — tap jump to hop a gap, hold it for a higher leap. Falling into a gap, smacking a wall, or being caught by a hazard ends the run.</p>
+<ul>
+  <li><strong>Distance.</strong> The metres-run counter sits top-right.</li>
+  <li><strong>Game over.</strong> A panel shows how far you ran and how you died. Press <strong>jump</strong> or <span class="kbd">R</span> to run again, or click <strong>EXIT</strong> (top-right) to return to the title.</li>
+  <li><strong>High score.</strong> Beat your best and a <strong>NEW RECORD</strong> badge appears; it's saved to <code>assets/highscore.dat</code> and persists between sessions.</li>
+</ul>
+
+<h2 id="controls">Controls</h2>
+<table>
+<tr><th>Key / input</th><th>Action</th></tr>
+<tr><td><span class="kbd">Space</span> / <span class="kbd">W</span> / <span class="kbd">↑</span> / click</td><td>Jump (hold for higher); start; retry</td></tr>
+<tr><td><span class="kbd">R</span></td><td>Retry the current run</td></tr>
+<tr><td>Click <strong>EXIT</strong> (on game over)</td><td>Back to the title</td></tr>
+<tr><td><span class="kbd">1</span>–<span class="kbd">4</span></td><td>Jump directly to that mode</td></tr>
+<tr><td><span class="kbd">]</span>/<span class="kbd">.</span> &nbsp; <span class="kbd">[</span>/<span class="kbd">,</span></td><td>Next / previous mode</td></tr>
+<tr><td><span class="kbd">F9</span> / <span class="kbd">F10</span></td><td>Mute audio / cycle music track</td></tr>
+<tr><td><span class="kbd">M</span></td><td>Show / hide the mouse cursor</td></tr>
+<tr><td><span class="kbd">`</span></td><td>Hide / show all dev UI — clean play</td></tr>
+<tr><td><span class="kbd">Esc</span></td><td>Quit</td></tr>
+</table>
+<p class="note">The teaching toggles (<span class="kbd">F1</span>–<span class="kbd">F8</span>, <span class="kbd">H</span>, <span class="kbd">+/-</span>, …) are listed in <a href="#toggles">Teaching toggles</a>; the bottom legend always shows their live state. Press <span class="kbd">`</span> to hide everything and just play.</p>
+
+<h2 id="modes">The incremental modes</h2>
+<p>The build is staged as four runnable modes — the game assembled from a single box up to the full runner. Cycle with <span class="kbd">]</span>/<span class="kbd">[</span>, or jump to one with <span class="kbd">1</span>–<span class="kbd">4</span>.</p>
+<ol>
+  <li><strong>Static Box</strong> — a box on the ground. Geometry + camera only.</li>
+  <li><strong>Gravity</strong> — a box falls and lands (integrator + collision). Space to drop again; <span class="kbd">E</span> bursts particles at the cursor.</li>
+  <li><strong>Run &amp; Jump</strong> — the real <code>Player</code> auto-runs on flat ground; hold to jump; the camera follows. Full feel, no hazards.</li>
+  <li><strong>Infinite Run</strong> — the real game: the ported level generator, the parallax city, hazards, sprites, sound and the title/score flow.</li>
+</ol>
+
+<h2 id="mech">Game mechanics</h2>
+<h3>Player physics (from <code>Player.m</code>)</h3>
+<table>
+<tr><th>Quantity</th><th>Value</th></tr>
+<tr><td>Hitbox</td><td>16×18 (sprite 30×30, offset 6,12)</td></tr>
+<tr><td>Start velocity x / gravity / drag x</td><td>125 / 1200 / 640</td></tr>
+<tr><td>Max velocity</td><td>(1000, 360)</td></tr>
+<tr><td>Accel. x ramp</td><td>60 / 36 / 24 / 12 / 4 as speed rises</td></tr>
+<tr><td>Jump limit</td><td>v<sub>x</sub> / (1000·2.5), capped at 0.35 s</td></tr>
+<tr><td>Short / full jump v<sub>y</sub></td><td>−0.65·360 / −360</td></tr>
+<tr><td>Fall / wall death</td><td>y &gt; 484 / accel. x → 0</td></tr>
+</table>
+<p>The hold-to-jump window scales with speed: the faster you run, the higher you can leap. A hard landing makes the runner stumble and roll.</p>
+<h3>The level generator (<code>Sequence.cpp</code>)</h3>
+<p>A faithful port of <code>Sequence.m</code>. Two "sequences" leapfrog: each owns one wide building, and when one scrolls off the left it regenerates just past the other. Each building's gap, width and vertical drop derive from your current <code>velocity.x</code> and <code>jumpLimit</code> — so the level gets harder precisely as you get faster. The first building is a fixed launch hallway. Special archetypes:</p>
+<ul>
+  <li><strong>Hallway</strong> — a tunnel; its windows smash (glass + sound) as you pass, doors line the back wall.</li>
+  <li><strong>Collapse</strong> — the roof sinks the moment you step on it; ride it down and leap off before it drops away.</li>
+  <li><strong>Bomb</strong> — whistles down and detonates on the roof; touching it is fatal.</li>
+  <li><strong>Crane</strong> — a metal beam you cross like a platform (footsteps ring out as metal).</li>
+  <li><strong>Billboard</strong> — a thin catwalk ledge under a damaged sign.</li>
+  <li><strong>Leg</strong> — a giant mech leg stomps down and crushes the building below.</li>
+</ul>
+<p>Rooftops also scatter obstacle crates and pigeons that flush as you approach; roof/floor caps and wall/window styles vary per building.</p>
+<h3>Background &amp; foreground extras</h3>
+<p>Distant Easter eggs ride the skyline — a mothership, a dark tower, two marching mech <em>walkers</em> (venting smoke), and a jet that streaks past and rattles the screen — while a steel girder occasionally sweeps the foreground. A startup screen-quake shakes the camera as a run begins.</p>
+
+<h2 id="present">Presentation</h2>
+<h3>Progressive sprite reveal (<span class="kbd">F6</span> / <span class="kbd">F8</span>)</h3>
+<p>Peel the world between pure collision geometry and full sprites one layer at a time: <strong>geometry</strong> → <strong>player</strong> → <strong>buildings</strong> → <strong>background</strong> → <strong>full sprites</strong>. <span class="kbd">F8</span> jumps between all-geometry and all-sprites; <span class="kbd">C</span> overlays the collision boxes at any level.</p>
+<h3>Sound &amp; music</h3>
+<p>Sound effects (footsteps, jumps, window smashes, glass, the bomb/leg/collapse hazards, the jet, pigeon flaps, the death thud) are decoded in-house from the original <code>.caf</code> and mixed live. Three looping tracks are included — <span class="kbd">F9</span> mutes all audio, <span class="kbd">F10</span> cycles the track. The title screen has its own theme.</p>
+
+<h2 id="assets">Assets</h2>
+<p>All game assets live under <code>src/game/canabalt/assets/</code>, loaded through the engine's in-house decoders — nothing is baked into the binary:</p>
+<ul>
+  <li><code>images/</code> — PNGs (player sheet, HUD glyphs, building/crane/billboard tiles, UI). <code>images/raw/</code> holds the un-atlased source art.</li>
+  <li><code>sound/</code> — SFX as 22050 Hz mono 16-bit LPCM <code>.caf</code>; <code>convert.sh</code> regenerates them from the <code>.mp3</code> via <code>afconvert</code>.</li>
+  <li><code>music/</code> — the looping tracks, converted the same way.</li>
+</ul>
+
+<h2 id="toggles">Teaching toggles (quick reference)</h2>
+<table>
+<tr><th>Key</th><th>Effect</th></tr>
+<tr><td><span class="kbd">F1</span></td><td>RNG: deterministic (LCG) ↔ entropy-seeded; regenerates the city</td></tr>
+<tr><td><span class="kbd">F2</span>/<span class="kbd">F3</span>/<span class="kbd">F4</span></td><td>Startup quake on-off / weaker / stronger</td></tr>
+<tr><td><span class="kbd">F5</span></td><td>Variable ↔ fixed simulation timestep</td></tr>
+<tr><td><span class="kbd">F6</span>/<span class="kbd">F8</span></td><td>Sprite-reveal level / all-geometry ↔ all-sprites</td></tr>
+<tr><td><span class="kbd">F7</span></td><td>Particles on / off</td></tr>
+<tr><td><span class="kbd">H</span></td><td>Perf + memory overlay; hover an entity to inspect</td></tr>
+<tr><td><span class="kbd">+</span>/<span class="kbd">-</span></td><td>Simulation time scale (slow-mo / fast-forward)</td></tr>
+<tr><td><span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">Z</span>/<span class="kbd">G</span></td><td>Colliders / parallax / wireframe / grid</td></tr>
+<tr><td><span class="kbd">P</span>/<span class="kbd">O</span></td><td>Pause / single-step</td></tr>
+<tr><td><span class="kbd">F12</span></td><td>Save a PNG screenshot</td></tr>
+</table>
+
+</main>
+</div>
+</body>
+</html>

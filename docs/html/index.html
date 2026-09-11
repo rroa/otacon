@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Otacon Engine — Manual</title>
+<style>
+  :root { --bg:#16171c; --panel:#1f2129; --ink:#e7e7ea; --mut:#9aa0ad; --acc:#5ad1c9; --acc2:#f0c020; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         background:var(--bg); color:var(--ink); }
+  header { padding:48px 24px; background:linear-gradient(135deg,#2b2b33,#16171c); border-bottom:2px solid var(--acc); }
+  header h1 { margin:0 0 6px; font-size:30px; letter-spacing:.3px; }
+  header p { margin:0; color:var(--mut); }
+  .wrap { max-width:980px; margin:0 auto; padding:0 24px; display:grid; grid-template-columns:220px 1fr; gap:28px; }
+  nav { position:sticky; top:0; align-self:start; padding-top:28px; }
+  nav a { display:block; color:var(--mut); text-decoration:none; padding:4px 0; font-size:14px; }
+  nav a:hover { color:var(--acc); }
+  main { padding:28px 0 80px; min-width:0; }
+  h2 { margin-top:40px; border-bottom:1px solid #333; padding-bottom:6px; color:var(--acc); }
+  h3 { color:var(--acc2); margin-top:26px; }
+  code { background:var(--panel); padding:1px 5px; border-radius:4px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13.5px; }
+  pre { background:var(--panel); padding:14px 16px; border-radius:8px; overflow:auto; border:1px solid #2b2d36; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; width:100%; margin:14px 0; }
+  th,td { text-align:left; padding:7px 10px; border-bottom:1px solid #2b2d36; vertical-align:top; }
+  th { color:var(--acc); font-size:14px; }
+  .kbd { display:inline-block; background:#2b2d36; border:1px solid #3a3d48; border-bottom-width:2px;
+         border-radius:5px; padding:1px 7px; font-family:ui-monospace,monospace; font-size:13px; }
+  .note { background:#1d2630; border-left:3px solid var(--acc); padding:10px 14px; border-radius:0 6px 6px 0; color:var(--mut); }
+  a { color:var(--acc); }
+  @media (max-width:760px){ .wrap{grid-template-columns:1fr;} nav{position:static;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>The <span style="color:var(--acc)">Otacon</span> Engine</h1>
+  <p>A small, reusable, in-house 2D game engine — architecture &amp; usage manual. (For the bundled game, see the <a href="../../src/game/canabalt/docs/html/index.html">Canabalt manual</a>.)</p>
+</header>
+<div class="wrap">
+<nav>
+  <a href="#what">What Otacon is</a>
+  <a href="#build">Building</a>
+  <a href="#seams">The four seams</a>
+  <a href="#game">Writing a game</a>
+  <a href="#draw">The drawing API</a>
+  <a href="#scene">The scene system</a>
+  <a href="#core">Core subsystems</a>
+  <a href="#assets">Asset decoders</a>
+  <a href="#audio">Audio</a>
+  <a href="#gfx">Graphics backends</a>
+  <a href="#tools">Debug tools</a>
+  <a href="#verify">Verification</a>
+  <p style="color:var(--mut);font-size:13px;margin-top:16px">Also as <a href="../otacon-engine.pdf">otacon-engine.pdf</a>.</p>
+</nav>
+<main>
+
+<h2 id="what">What Otacon is</h2>
+<p>Otacon is a small 2D game engine, built as a static library (<code>src/engine/</code>, namespace <code>otacon</code>). It is deliberately <strong>game-agnostic</strong>: three games ship in this repo — <code>src/game/canabalt/</code>, <code>src/game/dino/</code> (the Chromium T-Rex runner) and <code>src/game/flappy/</code> — and each links the same unchanged library, talking to it only through public interfaces. They differ in logical resolution (480×320 / 600×150 / 288×512), camera model and level design; a fourth would be one more <code>IGame</code> and one more CMake target.</p>
+<p class="note"><strong>Golden rule:</strong> engine code never mentions the game, and game code never mentions GLFW / OpenGL / Vulkan / CoreAudio. Everything crosses through four seams: <code>IGame</code>, <code>IWindow</code>, <code>IRenderer</code>, <code>IAudio</code>.</p>
+<h3>Philosophy</h3>
+<ul>
+  <li><strong>In-house subsystems.</strong> Math (with a fixed-point scalar), vectors, a memory manager, time, a debug runtime, the OpenGL loader, and even the PNG and CAF asset decoders are written from scratch. The only third-party code is the window library, fetched automatically.</li>
+  <li><strong>Pluggable backends.</strong> Graphics (legacy/modern OpenGL, Vulkan) and window (GLFW, SDL2) are chosen by one config flag, selected at compile time.</li>
+  <li><strong>Verifiable.</strong> Every renderer is held to a byte-identical contract (proven by SHA-256).</li>
+</ul>
+
+<h2 id="build">Building &amp; configuration</h2>
+<p>The engine is the <code>otacon</code> static-library target, built as part of the CMake project. A game executable links it.</p>
+<pre><code>cmake -S . -B build          # first configure fetches the window library
+cmake --build build -j8      # builds libotacon.a + the game exes</code></pre>
+<p>Compile-time choices live in <code>config/build.cfg</code> (or override with <code>-D</code>):</p>
+<table>
+<tr><th>Key</th><th>Values</th><th>Meaning</th></tr>
+<tr><td><code>GRAPHICS_BACKEND</code></td><td>GL_LEGACY / GL_MODERN / VULKAN</td><td>Renderer pipeline</td></tr>
+<tr><td><code>WINDOW_BACKEND</code></td><td>GLFW / SDL2</td><td>Window / input / context</td></tr>
+<tr><td><code>SCALAR_TYPE</code></td><td>FLOAT / FIXED</td><td>Simulation number type</td></tr>
+<tr><td><code>MEMORY_TRACKING</code></td><td>ON / OFF</td><td>Allocation tracking + leak report</td></tr>
+<tr><td><code>DEBUG_RUNTIME</code></td><td>ON / OFF</td><td>Runtime debug views</td></tr>
+</table>
+
+<h2 id="seams">The four seams</h2>
+<h3>IGame — the game contract</h3>
+<p>A game is one object implementing <code>IGame</code>; the engine's <code>App</code> owns the window, renderer, audio, timing and debug runtime and drives it.</p>
+<pre><code>struct GameContext { IRenderer* renderer; IWindow* window; IAudio* audio;
+                     DebugRuntime* debug; int logicalW, logicalH; const char* assetDir; };
+class IGame {
+    virtual void init(GameContext&) = 0;
+    virtual void handleInput(const InputFrame&) = 0;
+    virtual void update(Real dt) = 0;
+    virtual void render(IRenderer&, const DebugRuntime&) = 0;
+    virtual void shutdown() {}
+};</code></pre>
+<h3>IWindow — window, input, context</h3>
+<p><code>createWindow(cfg)</code> returns the compiled-in backend (GLFW or SDL2). It exposes a uniform <code>InputFrame</code> (edge + held arrays keyed by an <code>Action</code> enum, mouse, drag button), the GL context plumbing, and the Vulkan surface plumbing. <strong>Both backends are complete</strong> and interchangeable.</p>
+<h3>IRenderer — drawing</h3>
+<p>A backend implements only triangle submission + frame lifecycle; all shapes are tessellated once in the shared base, so every backend draws identical geometry. See <a href="#draw">the drawing API</a>.</p>
+<h3>IAudio — sound</h3>
+<p><code>createAudio()</code> returns the platform device (CoreAudio on macOS, silent stub elsewhere); never null. The game uploads decoded PCM with <code>createSound</code>, then fires <code>play</code> / <code>playMusic</code>. See <a href="#audio">Audio</a>.</p>
+
+<h2 id="game">Writing a game</h2>
+<p>A minimal game draws something each frame:</p>
+<pre><code>class MyGame : public otacon::IGame {
+    otacon::IRenderer* r_ = nullptr;
+    void init(otacon::GameContext& ctx) override { r_ = ctx.renderer; }
+    void update(otacon::Real dt) override { /* advance simulation */ }
+    void render(otacon::IRenderer& r, const otacon::DebugRuntime&) override {
+        r.fillRect(100, 100, 64, 64, otacon::Color::rgb(0xf0c020));
+    }
+    const char* title() const override { return "My Game"; }
+};
+// main(): otacon::App app; MyGame game; if (app.init(cfg,&game,dir)) app.run();</code></pre>
+
+<h2 id="draw">The drawing API</h2>
+<p>The renderer works in a fixed <strong>logical</strong> space (480×320, origin top-left, <em>y</em> down); each backend applies its own projection. Colours are straight-alpha RGBA.</p>
+<table>
+<tr><th>Call</th><th>Draws</th></tr>
+<tr><td><code>fillRect(x,y,w,h,color)</code></td><td>a filled rectangle</td></tr>
+<tr><td><code>fillRotatedRect(cx,cy,w,h,deg,color)</code></td><td>a rectangle rotated about its centre</td></tr>
+<tr><td><code>drawRectOutline(x,y,w,h,color,t)</code></td><td>a rectangle outline</td></tr>
+<tr><td><code>drawLine(x0,y0,x1,y1,color,t)</code></td><td>a thick line segment</td></tr>
+<tr><td><code>drawImage(tex,x,y,w,h,u0,v0,u1,v1,tint)</code></td><td>a texture sub-rect into a dest rect</td></tr>
+<tr><td><code>drawImageRotated(tex,cx,cy,w,h,deg,…)</code></td><td>a rotated textured quad</td></tr>
+<tr><td><code>drawText(text,x,y,scale,color)</code></td><td>a string in the built-in 3×5 bitmap font</td></tr>
+</table>
+<p>Textures come from a decoded <code>Image</code> via <code>createTexture(img, repeat)</code> (nearest filtering). <strong>The contract:</strong> a backend implements only <code>submitTriangles</code> / <code>submitTextured</code> + <code>beginFrame</code>/<code>endFrame</code>; every primitive is tessellated to triangles once in the base class, so all backends rasterise identical geometry.</p>
+
+<h2 id="scene">The scene system</h2>
+<p>A small scene graph keeps rendering in one place — the Scene renders the tree, nothing draws on the side.</p>
+<ul>
+  <li><strong>Entity</strong> — simulation/collision data (pos, size, velocity, the solid/fixed/moves flags, a <code>scrollFactor</code> for parallax, optional texture/colour). <code>updateMotion</code> integrates it.</li>
+  <li><strong>Node</strong> — a scene-tree element with <code>update</code>/<code>render</code> (emitters, sprite drawers, facade renderers, UI); may override <code>renderColliders</code>.</li>
+  <li><strong>Scene</strong> — owns the camera, an ordered entity draw layer, a <em>backdrop</em> node list (drawn before the entities, for the farthest parallax) and the main node list (after).</li>
+  <li><strong>Camera</strong> — a faithful flixel follow camera (centre, lerp, clamp) projecting world→screen through each entity's <code>scrollFactor</code>; hosts the screen-quake.</li>
+  <li><strong>Collision</strong> — flixel's swept-AABB separation (solveX then solveY).</li>
+  <li><strong>Emitter</strong> — a pooled particle emitter (burst/continuous, gravity/drag/spin, optional sprite sheet).</li>
+</ul>
+
+<h2 id="core">Core subsystems</h2>
+<h3>Math &amp; the pluggable scalar</h3>
+<p><code>Real</code> is the engine number type: an IEEE <code>float</code> by default (bit-for-bit reproducible), or an in-house <em>Q16.16</em> <code>Fixed</code> with <code>SCALAR_TYPE=FIXED</code> — a determinism/range teaching point (it saturates near ±32768). Vectors are templated on the scalar.</p>
+<h3>Memory</h3>
+<p>Three classic allocators: a <strong>tracked heap</strong> (per-block tags + leak report), a linear <strong>Arena</strong> (bump, reset per frame), and a fixed-size <strong>Pool</strong> (free-list, O(1)). Global <code>new</code>/<code>delete</code> are intentionally not overridden.</p>
+<h3>Time</h3>
+<p><code>TimeManager</code> produces the per-frame <code>dt</code>: a <em>variable</em> step (flixel-exact, clamped to 1/20 s) or a <em>fixed</em> step (frame-rate-independent). It also drives the slow-mo/fast-forward time scale.</p>
+<h3>Debug runtime</h3>
+<p><code>DebugRuntime</code> holds toggleable views (colliders, focus, parallax, grid, wireframe, velocities, HUD), pause/step and presets — plain state read each frame, so every backend gets identical visualisation. A single "UI hidden" flag gives clean play (and is what <code>--capture</code> uses).</p>
+
+<h2 id="assets">In-house asset decoders</h2>
+<p><strong>PNG</strong> (<code>asset/Png.cpp</code>, <code>Inflate.cpp</code>): a from-scratch DEFLATE/zlib inflater + a PNG chunk parser that undoes the scanline filters and expands grayscale / RGB / palette+tRNS / RGBA to RGBA8. A matching encoder (<code>PngWrite.cpp</code>) writes screenshots via stored DEFLATE blocks — no compressor needed.</p>
+<p><strong>CAF audio</strong> (<code>asset/Caf.cpp</code>): parses the Core Audio Format container and decodes LPCM (any width/endianness) to interleaved float as an <code>AudioClip</code>.</p>
+
+<h2 id="audio">Audio</h2>
+<p>The <code>IAudio</code> device owns an in-house software <strong>Mixer</strong> (a pool of one-shot voices + one looping music voice, summed into stereo float with gain + soft-clamp; resampled on upload) and a thin platform output. The <strong>CoreAudio</strong> backend drives a DefaultOutput AudioUnit whose render callback pulls from the mixer; the <strong>null</strong> backend stays silent. A short mutex bridges the game and audio threads.</p>
+
+<h2 id="gfx">Graphics backends</h2>
+<p>Every backend honours the same contract: logical 480×320 (origin top-left, <em>y</em> down), straight-alpha blending, triangle lists only.</p>
+<ul>
+  <li><strong>GL Legacy (2.1)</strong> — <code>glOrtho</code> + immediate mode; compatibility context, no loader.</li>
+  <li><strong>GL Modern (core 3.3)</strong> — streamed VBO/VAO + a small shader pair; needs a function loader, shipped in-house (<code>gl_modern/GLLoader</code>, no GLAD/GLEW).</li>
+  <li><strong>Vulkan</strong> — full instance/device/swapchain/pipelines from embedded SPIR-V; the shader does <em>not</em> flip <em>y</em> (Vulkan clip space is already y-down). Validation-clean; on macOS uses MoltenVK via <code>tools/run.sh</code>.</li>
+</ul>
+
+<h2 id="tools">Debug &amp; dev tools</h2>
+<table>
+<tr><th>Key</th><th>Tool</th></tr>
+<tr><td><span class="kbd">H</span></td><td>Perf + memory overlay (frame-time graph, draw/vertex counts, live bytes) + hover-to-inspect</td></tr>
+<tr><td><span class="kbd">+</span> / <span class="kbd">-</span></td><td>Time scale 0.1×–4× (scales input time, so determinism holds)</td></tr>
+<tr><td><span class="kbd">F12</span></td><td>Screenshot via the in-house PNG encoder</td></tr>
+<tr><td><span class="kbd">`</span></td><td>Clean play — hide all dev UI</td></tr>
+<tr><td><code>--capture &lt;png&gt; --frames N</code></td><td>render N deterministic frames (UI hidden) and quit</td></tr>
+</table>
+
+<h2 id="verify">Verification</h2>
+<p><code>tools/backend-diff.sh</code> renders the same deterministic frame in each graphics backend and compares the PNGs. Across both window backends, the full matrix — {GLFW, SDL2} × {GL_MODERN, GL_LEGACY, VULKAN} — yields <strong>the same SHA-256 in all six combinations</strong>: proof that neither seam perturbs a single pixel. The headless <code>otacon_smoke</code> target additionally unit-tests the integrator, collision, the emitter, fixed-point math, the PNG/CAF decoders and the audio mixer.</p>
+
+</main>
+</div>
+</body>
+</html>

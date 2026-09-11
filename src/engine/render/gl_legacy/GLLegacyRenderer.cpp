@@ -1,0 +1,114 @@
+// GLLegacyRenderer.cpp — OpenGL fixed-function (legacy 2.1) backend.
+//
+// The classic pipeline: no shaders, no VBOs. We set up an orthographic
+// projection with glOrtho and push vertices through immediate mode
+// (glBegin/glColor/glVertex). It consumes the exact same logical-space triangle
+// list as the modern and Vulkan backends, so output geometry is identical;
+// only the submission path differs. Fixed-function functions are GL 1.x and are
+// available by linking the GL library directly — no loader needed.
+#include "render/IRenderer.hpp"
+#include "platform/Window.hpp"
+#include <cstring>
+
+#if defined(__APPLE__)
+#  define GL_SILENCE_DEPRECATION 1
+#  include <OpenGL/gl.h>
+#else
+#  include <GL/gl.h>
+#endif
+
+namespace otacon {
+
+class GLLegacyRenderer final : public IRenderer {
+public:
+    void shutdown() override {}
+    const char* name() const override { return "OpenGL Legacy (fixed-function 2.1)"; }
+    void setWireframe(bool on) override { wireframe_ = on; }
+
+    TextureHandle createTexture(int w, int h, const std::uint8_t* rgba, bool repeat) override {
+        GLuint tex = 0; GLint wrap = repeat ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        return TextureHandle(tex);
+    }
+    void destroyTexture(TextureHandle t) override {
+        if (t) { GLuint id = t; glDeleteTextures(1, &id); }
+    }
+    bool readPixels(int& w, int& h, std::vector<std::uint8_t>& rgba) override {
+        int fbw = 0, fbh = 0; window_->framebufferSize(fbw, fbh);
+        w = fbw; h = fbh;
+        rgba.assign(std::size_t(w) * h * 4, 0);
+        glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+        std::vector<std::uint8_t> tmp(std::size_t(w) * 4);   // flip bottom-left -> top-left
+        for (int y = 0; y < h / 2; ++y) {
+            std::uint8_t* a = rgba.data() + std::size_t(y) * w * 4;
+            std::uint8_t* b = rgba.data() + std::size_t(h - 1 - y) * w * 4;
+            std::memcpy(tmp.data(), a, tmp.size());
+            std::memcpy(a, b, tmp.size());
+            std::memcpy(b, tmp.data(), tmp.size());
+        }
+        return true;
+    }
+
+protected:
+    bool onInit(IWindow* window) override {
+        window_ = window;
+        window_->makeContextCurrent();
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        return true;
+    }
+    void onBeginFrame(Color clear) override {
+        int fbw = 0, fbh = 0; window_->framebufferSize(fbw, fbh);
+        glViewport(0, 0, fbw, fbh);
+        glPolygonMode(GL_FRONT_AND_BACK, wireframe_ ? GL_LINE : GL_FILL);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        // top-left origin, y downward — same convention as the modern shader.
+        glOrtho(0.0, double(logicalW_), double(logicalH_), 0.0, -1.0, 1.0);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glClearColor(clear.r, clear.g, clear.b, clear.a);
+        glClear(GL_COLOR_BUFFER_BIT);                // clear the whole window (letterbox bars)
+        int vx, vy, vw, vh; letterbox(fbw, fbh, vx, vy, vw, vh);
+        glViewport(vx, vy, vw, vh);                   // draw logical content aspect-correct, centered
+    }
+    void onEndFrame() override { tryCapture(); }
+
+    void submitTriangles(const Vertex* v, std::size_t count) override {
+        glDisable(GL_TEXTURE_2D);                    // solid: don't sample a stale texture
+        glBegin(GL_TRIANGLES);
+        for (std::size_t i = 0; i < count; ++i) {
+            glColor4f(v[i].c.r, v[i].c.g, v[i].c.b, v[i].c.a);
+            glVertex2f(v[i].x, v[i].y);
+        }
+        glEnd();
+    }
+
+    void submitTextured(const TexVertex* v, std::size_t count, TextureHandle tex) override {
+        if (!count || !tex) return;
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, GLuint(tex));
+        glBegin(GL_TRIANGLES);
+        for (std::size_t i = 0; i < count; ++i) {
+            glColor4f(v[i].tint.r, v[i].tint.g, v[i].tint.b, v[i].tint.a);
+            glTexCoord2f(v[i].u, v[i].v);
+            glVertex2f(v[i].x, v[i].y);
+        }
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+    }
+
+private:
+    IWindow* window_ = nullptr;
+    bool wireframe_ = false;
+};
+
+IRenderer* createRendererGLLegacy() { return new GLLegacyRenderer(); }
+
+} // namespace otacon

@@ -1,0 +1,27 @@
+# ---- Build output -----------------------------------------------------------
+# Any build tree at the root: build/, build-sdl/, build-vulkan/, …
+/build*/
+*.o
+*.obj
+*.a
+
+# ---- Reference sources ------------------------------------------------------
+# The upstream Canabalt / Chromium sources the ports were read from. Studied,
+# never built, and not ours to redistribute — fetched separately.
+/reference/
+
+# ---- Tool / editor droppings ------------------------------------------------
+.cache/
+compile_commands.json
+.DS_Store
+
+# ---- Generated at runtime ---------------------------------------------------
+# F12 screenshots and --capture / --record output land in the working directory.
+screenshot_*.png
+
+# ---- LaTeX intermediates ----------------------------------------------------
+# The PDFs themselves are tracked (tools/build-docs.sh regenerates them).
+*.aux
+*.log
+*.out
+*.toc

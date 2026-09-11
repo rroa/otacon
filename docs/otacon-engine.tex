@@ -1,0 +1,350 @@
+\documentclass[11pt]{report}
+\usepackage[margin=1in]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!50!black}
+
+\definecolor{codebg}{RGB}{245,245,248}
+\lstset{
+  basicstyle=\ttfamily\small, backgroundcolor=\color{codebg},
+  breaklines=true, frame=single, rulecolor=\color{gray!40},
+  columns=fullflexible, keepspaces=true, showstringspaces=false
+}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\textbf{The Otacon Engine}\\[4pt]\large A small, reusable, in-house 2D game engine ---
+       architecture and usage manual}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\chapter{What Otacon is}
+Otacon is a small 2D game engine, built as a static library
+(\code{src/engine/}, namespace \code{otacon}). It is deliberately
+\textbf{game-agnostic}: it knows nothing about any particular game. Three games
+ship in this repository --- \emph{Canabalt} (\code{src/game/canabalt/}), the
+Chromium \emph{T-Rex runner} (\code{src/game/dino/}) and \emph{Flappy~Bird}
+(\code{src/game/flappy/}) --- and each links the same unchanged library, talking
+to it only through public interfaces. They differ in almost every way a game can:
+480$\times$320 / 600$\times$150 / 288$\times$512 logical resolutions, a scrolling
+follow camera versus a fixed one, a ported generator versus an original one. A
+fourth game would be one more \code{IGame} and one more CMake target; nothing in
+\code{src/engine/} would move. The golden rule of the layout is: \textbf{engine
+code never mentions the game, and game code never mentions GLFW / OpenGL / Vulkan
+/ CoreAudio.} Everything crosses that boundary through four seams: \code{IGame},
+\code{IWindow}, \code{IRenderer} and \code{IAudio}.
+
+\section{Philosophy}
+\begin{itemize}[nosep]
+  \item \textbf{In-house subsystems.} Math (with a fixed-point scalar), an
+        $n$-dimensional vector library, a memory manager, time management, a debug
+        runtime, the OpenGL function loader, and even the PNG and CAF asset
+        decoders are written from scratch. The only third-party code is the window
+        library (GLFW or SDL2), fetched automatically.
+  \item \textbf{Pluggable backends.} The graphics backend (legacy OpenGL, modern
+        OpenGL, Vulkan) and the window backend (GLFW, SDL2) are chosen by a single
+        config flag and selected at compile time --- nothing above the platform
+        layer changes.
+  \item \textbf{Verifiable.} The renderers are held to a byte-identical contract:
+        every backend draws the same deterministic frame to the same pixels (proven
+        by SHA-256). See Chapter~\ref{ch:verify}.
+\end{itemize}
+
+\chapter{Building the engine}
+The engine is built as part of the project's CMake build; there is no separate
+``install''. A game executable links the \code{otacon} static-library target.
+
+\begin{lstlisting}[language=bash]
+cmake -S . -B build            # first configure fetches the window library
+cmake --build build -j8        # builds libotacon.a + the game exes
+\end{lstlisting}
+
+\section{Compile-time configuration}
+All compile-time choices live in \code{config/build.cfg}; edit a value and re-run
+CMake (it reconfigures automatically when the file changes). Any key can also be
+overridden per-configure, e.g.\ \code{-DGRAPHICS\_BACKEND=VULKAN}.
+
+\begin{longtable}{lll}
+\toprule
+Key & Values & Meaning \\
+\midrule
+\endhead
+\code{GRAPHICS\_BACKEND} & \code{GL\_LEGACY} / \code{GL\_MODERN} / \code{VULKAN} & Renderer pipeline \\
+\code{WINDOW\_BACKEND}   & \code{GLFW} / \code{SDL2} & Window / input / context library \\
+\code{SCALAR\_TYPE}      & \code{FLOAT} / \code{FIXED} & Simulation number type \\
+\code{MEMORY\_TRACKING}  & \code{ON} / \code{OFF} & Allocation tracking + leak report \\
+\code{DEBUG\_RUNTIME}    & \code{ON} / \code{OFF} & Runtime debug views \\
+\bottomrule
+\end{longtable}
+
+\section{Source layout}
+\begin{lstlisting}
+src/engine/          # ---- Otacon engine (static lib 'otacon') ----
+  core/math/         #   Fixed (Q16.16), Scalar (float|fixed), Vector, Rect
+  core/memory/       #   Tracked heap + Arena + Pool allocators
+  core/time/         #   Clock + TimeManager (variable/fixed timestep)
+  core/debug/        #   DebugRuntime (runtime view switching)
+  asset/             #   In-house PNG decode/encode + CAF audio decode
+  audio/             #   IAudio seam, software Mixer, CoreAudio / null backend
+  platform/          #   IWindow seam; glfw/ and sdl2/ backends
+  render/            #   IRenderer seam; gl_modern/ gl_legacy/ vulkan/
+  scene/             #   Entity, Node, Scene, Camera, Collision, Emitter
+  App.cpp IGame.hpp  #   Engine runtime + the game contract
+\end{lstlisting}
+
+\chapter{The four seams}
+\section{\code{IGame} --- the game contract}
+A game is one object implementing \code{IGame}. The engine's \code{App} owns the
+window, renderer, audio device, timing and debug runtime, and drives the game:
+
+\begin{lstlisting}[language=C++]
+struct GameContext {           // handed to the game once, at init
+    IRenderer*    renderer;    IWindow* window;  IAudio* audio;
+    DebugRuntime* debug;       int logicalW, logicalH; const char* assetDir;
+};
+class IGame {
+    virtual void init(GameContext&) = 0;
+    virtual void handleInput(const InputFrame&) = 0;   // edges + held state
+    virtual void update(Real dt) = 0;                  // one simulation step
+    virtual void render(IRenderer&, const DebugRuntime&) = 0;
+    virtual void shutdown() {}                         // free GPU/audio handles
+    virtual Color clearColor() const;  virtual const char* title() const = 0;
+};
+\end{lstlisting}
+
+\code{App::run()} is the main loop: poll input, step the simulation (zero or more
+fixed steps, or a clamped variable step), then render. The game is handed the
+renderer to draw with and the \code{DebugRuntime} so it can honour the
+clean-play / overlay state.
+
+\section{\code{IWindow} --- window, input, context}
+\code{createWindow(cfg)} returns the compiled-in backend (GLFW or SDL2). The
+window exposes a uniform \code{InputFrame} (level-triggered \code{held[]} and
+edge-triggered \code{pressed[]} arrays keyed by an \code{Action} enum, plus
+normalised mouse position and the drag button), the GL context plumbing
+(\code{makeContextCurrent} / \code{swapBuffers} / \code{glProcAddress}) and the
+Vulkan plumbing (\code{vulkanInstanceExtensions} / \code{createVulkanSurface}).
+\textbf{Both backends are complete} and interchangeable; selecting one is a
+config flag.
+
+\section{\code{IRenderer} --- drawing}
+See Chapter~\ref{ch:draw}. A backend implements only triangle submission and the
+frame lifecycle; all shapes are tessellated once in the shared \code{IRenderer}
+base, so every backend draws identical geometry.
+
+\section{\code{IAudio} --- sound}
+\code{createAudio()} returns the platform audio device (CoreAudio on macOS, a
+silent stub elsewhere); it never returns null, so game code is unchanged when no
+device is available. The game decodes its sounds in-house and uploads PCM with
+\code{createSound}, then fires one-shots with \code{play} and background music
+with \code{playMusic}. See Chapter~\ref{ch:audio}.
+
+\chapter{Writing a game}
+A minimal game is an \code{IGame} that draws something each frame:
+
+\begin{lstlisting}[language=C++]
+class MyGame : public otacon::IGame {
+    otacon::IRenderer* r_ = nullptr;
+    void init(otacon::GameContext& ctx) override { r_ = ctx.renderer; }
+    void handleInput(const otacon::InputFrame& in) override {
+        if (in.isPressed(otacon::Action::Jump)) { /* ... */ }
+    }
+    void update(otacon::Real dt) override { /* advance simulation */ }
+    void render(otacon::IRenderer& r, const otacon::DebugRuntime&) override {
+        r.fillRect(100, 100, 64, 64, otacon::Color::rgb(0xf0c020));
+    }
+    const char* title() const override { return "My Game"; }
+};
+\end{lstlisting}
+
+\code{main()} creates the \code{App}, the game, and runs:
+\begin{lstlisting}[language=C++]
+otacon::App app;  MyGame game;
+if (app.init(cfg, &game, assetDir)) app.run();
+app.shutdown();
+\end{lstlisting}
+
+\chapter{The drawing API}\label{ch:draw}
+The renderer works in a fixed \textbf{logical} coordinate space ---
+$480\times320$ by default, origin top-left, $y$ downward --- and each backend
+applies its own projection to clip space. Colours are straight-alpha RGBA. The
+public primitives:
+
+\begin{longtable}{ll}
+\toprule
+Call & Draws \\
+\midrule
+\endhead
+\code{fillRect(x,y,w,h,color)} & a filled axis-aligned rectangle \\
+\code{fillRotatedRect(cx,cy,w,h,deg,color)} & a rectangle rotated about its centre \\
+\code{drawRectOutline(x,y,w,h,color,thick)} & a rectangle outline \\
+\code{drawLine(x0,y0,x1,y1,color,thick)} & a thick line segment \\
+\code{drawImage(tex,x,y,w,h,u0,v0,u1,v1,tint)} & a texture sub-rect into a dest rect \\
+\code{drawImageRotated(tex,cx,cy,w,h,deg,uvs,tint)} & a rotated textured quad \\
+\code{drawText(text,x,y,scale,color)} & a string in the built-in $3\times5$ bitmap font \\
+\bottomrule
+\end{longtable}
+
+\noindent Textures are created from a decoded \code{Image} with
+\code{createTexture(img, repeat)} (nearest filtering, for crisp pixel art) and
+freed with \code{destroyTexture}. \textbf{The cross-backend contract:} a backend
+only implements \code{submitTriangles} (solid) and \code{submitTextured}, plus
+\code{beginFrame}/\code{endFrame}. Every shape above --- rectangles, oriented
+lines, outlines, the bitmap font --- is tessellated to triangles once, in the
+shared base class, so all backends rasterise byte-for-byte identical geometry.
+
+\chapter{The scene system}
+The engine offers a small scene graph so rendering lives in one place ---
+``the Scene renders the tree, nothing draws on the side.''
+
+\begin{itemize}[nosep]
+  \item \textbf{\code{Entity}} --- simulation / collision data: position, size,
+        velocity, acceleration, drag, the \code{solid}/\code{fixed}/\code{moves}
+        flags, a \code{scrollFactor} for parallax, and an optional texture/colour
+        for the entity draw layer. \code{updateMotion} integrates it.
+  \item \textbf{\code{Node}} --- a scene-tree element with \code{update(dt,cam)}
+        and \code{render(r,cam)}; concrete nodes are particle emitters, sprite
+        drawers, facade renderers, UI. A node may also override
+        \code{renderColliders} (debug) and is skipped when \code{!visible}.
+  \item \textbf{\code{Scene}} --- owns the camera, an ordered entity draw layer
+        (rebuilt each frame by the game), a backdrop node list (drawn
+        \emph{before} the entities, for the farthest parallax), and the main node
+        list (drawn after). It ticks and renders the whole tree, then the debug
+        overlays.
+  \item \textbf{\code{Camera}} --- a faithful flixel follow camera: centres a
+        target, lerps the scroll, clamps to bounds, and projects world to screen
+        through each entity's \code{scrollFactor} (\code{screenPoint}). Also hosts
+        the decaying screen-quake.
+  \item \textbf{\code{Collision}} --- flixel's swept-AABB separation (\code{solveX}
+        then \code{solveY}) with the same direction bookkeeping and extent
+        rejection that avoids tunnelling.
+  \item \textbf{\code{Emitter}} --- a particle emitter (a \code{Node}) with a
+        fixed pool, burst and continuous modes, gravity/drag/spin, and an optional
+        sprite sheet so particles can be solid quads or textured frames.
+\end{itemize}
+
+\chapter{Core subsystems}
+\section{Math and the pluggable scalar}
+\code{Real} is the engine number type. With \code{SCALAR\_TYPE=FLOAT} it is an
+IEEE float (and reproduces the reference game bit-for-bit). With \code{FIXED} it
+becomes \code{Fixed}, an in-house \emph{Q16.16} fixed-point type --- a
+performance/determinism teaching point. (Q16.16 saturates near $\pm32768$, so an
+endless runner's world-$x$ eventually overflows; that is itself the lesson about
+range.) Vectors (\code{Vector.cpp}) are templated on the scalar and explicitly
+instantiated for 2, 3 and 4 dimensions.
+
+\section{Memory manager}
+\code{core/memory} provides three classic allocators: a \textbf{tracked heap}
+(records every live block with size/tag/call-site and prints leaks at exit), a
+linear \textbf{Arena} (bump-pointer, reset per frame) and a fixed-size
+\textbf{Pool} (free-list, O(1), zero fragmentation). Global \code{new}/\code{delete}
+are intentionally \emph{not} overridden, so third-party allocations stay separate.
+
+\section{Time}
+\code{TimeManager} turns wall-clock time into the per-frame \code{dt}. The
+\emph{variable} policy reproduces flixel exactly (\code{dt = now - last}, clamped
+to \code{maxElapsed = 1/20\,s}); the \emph{fixed} policy banks real time and emits
+whole fixed steps for frame-rate-independent determinism. It also drives the time
+scale used by the slow-mo / fast-forward debug control.
+
+\section{Debug runtime}
+\code{DebugRuntime} holds independently toggleable views (colliders, camera focus,
+parallax bands, grid, wireframe, velocities, HUD) plus pause/step and curated
+presets. Because the views are plain state read by the engine each frame, every
+backend gets identical debug visualisation for free. A single ``UI hidden'' flag
+gives clean-play (and is what \code{--capture} uses for deterministic frames).
+
+\chapter{In-house asset decoders}
+\section{PNG (\code{asset/Png.cpp}, \code{Inflate.cpp})}
+Rather than link an image library, the engine decodes PNGs itself.
+\code{Inflate.cpp} is a from-scratch DEFLATE decompressor (RFC~1951) with its own
+bit reader, canonical Huffman decoder and LZ77 window, wrapped for zlib streams
+(RFC~1950). \code{Png.cpp} parses the chunk list (IHDR/PLTE/tRNS/IDAT/IEND),
+inflates, undoes the per-scanline filters (None/Sub/Up/Average/Paeth) and expands
+grayscale / RGB / palette+tRNS / RGBA into straight RGBA8. \code{PngWrite.cpp} is
+a matching encoder (valid PNG via stored/uncompressed DEFLATE blocks --- no
+compressor needed) used for screenshots and the cross-backend diff.
+
+\section{CAF audio (\code{asset/Caf.cpp})}
+\code{loadCaf} parses the (big-endian) Core Audio Format container --- the
+\code{desc} chunk for the format, the \code{data} chunk for the samples --- and
+decodes LPCM of any width/endianness into interleaved float in $[-1,1]$ as an
+\code{AudioClip}. (Sounds in the reference game ship as $22050$\,Hz mono $16$-bit
+LPCM.)
+
+\chapter{Audio}\label{ch:audio}
+The \code{IAudio} device owns an in-house software \textbf{Mixer} and a thin
+platform output. The mixer holds the uploaded sounds and a pool of one-shot voices
+plus one looping music voice, sums them into an interleaved stereo float buffer,
+applies master + per-voice gain and a soft clamp, and resamples on upload so the
+real-time render path never converts rates. A short mutex guards the voice list
+between the game thread (\code{play}) and the audio thread (\code{render}). The
+\textbf{CoreAudio} backend drives a DefaultOutput AudioUnit whose render callback
+pulls from the mixer; the \textbf{null} backend (non-Apple) accepts everything and
+stays silent. This is the only OS-specific audio code --- exactly as GLFW is the
+only OS-specific window code.
+
+\chapter{Graphics backends}
+\section{The cross-backend contract}
+Every backend implements only triangle rasterisation plus the frame lifecycle.
+The contract:
+\begin{itemize}[nosep]
+  \item \textbf{Coordinates:} logical $480\times320$, origin top-left, $y$ down;
+        each backend applies its own orthographic projection.
+  \item \textbf{Blending:} straight alpha, \code{SRC\_ALPHA / ONE\_MINUS\_SRC\_ALPHA}.
+  \item \textbf{Primitive:} triangle lists only; no backend-specific shapes.
+\end{itemize}
+
+\section{Per-backend notes}
+\begin{itemize}[nosep]
+  \item \textbf{GL Legacy (2.1).} \code{glOrtho} + immediate-mode
+        \code{glBegin/glColor/glVertex}; a compatibility context, no loader needed.
+  \item \textbf{GL Modern (core 3.3).} A streamed VBO/VAO and a small
+        vertex/fragment shader pair (the vertex shader does the logical$\to$clip
+        projection); needs a core, forward-compatible context and a function
+        loader --- shipped in-house in \code{gl\_modern/GLLoader} (no GLAD/GLEW).
+  \item \textbf{Vulkan.} A full implementation: instance (MoltenVK portability),
+        device, swapchain, render pass, solid + textured pipelines from embedded
+        SPIR-V, per-frame dynamic vertex buffers, staging-buffer texture uploads,
+        and per-frame/per-image synchronisation. Key difference, handled in the
+        shader: Vulkan clip space already has $y$ pointing down, so it does
+        \emph{not} flip $y$ as the GL shaders do. Validation-clean.
+\end{itemize}
+\textbf{Vulkan on macOS} uses MoltenVK via the Homebrew loader; launch through
+\code{tools/run.sh} (it sets \code{DYLD\_FALLBACK\_LIBRARY\_PATH} and
+\code{VK\_ICD\_FILENAMES}).
+
+\chapter{Debug \& dev tools}
+These are engine-level and work in any game (state shown in the HUD when visible):
+\begin{itemize}[nosep]
+  \item \textbf{Perf + memory overlay (\code{H}).} Frame-time graph (60/30\,fps
+        lines), live draw-call/vertex counts read from the renderer, and the
+        memory manager's live/peak bytes --- all backend-agnostic.
+  \item \textbf{Time scale (\code{+}/\code{-}).} Scales the \emph{input} time
+        $0.1\times$..$4\times$, so the fixed-timestep \code{dt} is unchanged and
+        slow-mo keeps determinism.
+  \item \textbf{Screenshots (\code{F12}) + capture.} The renderer reads the
+        framebuffer back and writes it through the in-house PNG encoder.
+        \code{--capture <png> --frames N} renders \code{N} deterministic frames
+        (UI hidden) and quits --- used by \code{tools/backend-diff.sh}.
+  \item \textbf{Clean play (\code{`}).} Hides all dev UI at once.
+\end{itemize}
+
+\chapter{Verification}\label{ch:verify}
+The renderers are held to the byte-identical contract by \code{tools/backend-diff.sh},
+which renders the same deterministic frame in each graphics backend and compares
+the PNGs. With both window backends in play, the full matrix --- \{GLFW, SDL2\}
+$\times$ \{GL\_MODERN, GL\_LEGACY, VULKAN\} --- produces \textbf{the same SHA-256
+across all six combinations}: the rigorous proof that neither the window seam nor
+the graphics seam perturbs a single pixel. The headless \code{otacon\_smoke} target
+additionally unit-tests the integrator, collision, the emitter, the fixed-point
+math, the PNG/CAF decoders and the audio mixer.
+
+\end{document}
