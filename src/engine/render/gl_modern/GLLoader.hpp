@@ -1,10 +1,17 @@
-// GLLoader.hpp — tiny in-house OpenGL function loader.
-//
-// Instead of pulling in GLAD/GLEW we declare the handful of GL types, enums and
-// entry points the modern backend actually uses, then resolve them at runtime
-// through the window's proc-address (glfwGetProcAddress / SDL_GL_GetProcAddress).
-// This is portable (Windows only exports GL 1.1 from opengl32.dll; everything
-// 2.0+ MUST be loaded this way) and shows exactly how a GL loader works.
+/*
+===========================================================================
+
+OTACON ENGINE
+render/gl_modern/GLLoader.hpp - OpenGL function loader
+
+Instead of pulling in GLAD/GLEW we declare the handful of GL types, enums and
+entry points the modern backend actually uses, then resolve them at runtime
+through the window's proc-address (glfwGetProcAddress / SDL_GL_GetProcAddress).
+This is portable (Windows only exports GL 1.1 from opengl32.dll; everything
+2.0+ MUST be loaded this way) and shows exactly how a GL loader works.
+
+===========================================================================
+*/
 #pragma once
 #include <cstddef>
 #include <cstdint>

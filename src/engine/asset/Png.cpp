@@ -1,9 +1,18 @@
-// Png.cpp — in-house PNG decoder (RFC 2083) on top of our own inflate.
-//
-// Pipeline: verify the signature, walk the chunk list (IHDR/PLTE/tRNS/IDAT/IEND),
-// zlib-inflate the concatenated IDAT data into filtered scanlines, undo the
-// per-row PNG filters (None/Sub/Up/Average/Paeth), then expand whatever colour
-// type it was into straight RGBA8.
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/Png.cpp - in-house PNG decoder
+
+Decodes 8-bit PNG - greyscale, RGB, palette, grey+alpha and RGBA,
+non-interlaced - to RGBA8, on top of the DEFLATE decoder in Inflate.cpp.
+
+The interesting part of PNG is not the container but the filtering: every
+scanline is stored as a delta against its neighbours, chosen per line by the
+encoder, and undoing that is most of the work below.
+
+===========================================================================
+*/
 #include "asset/Image.hpp"
 #include "asset/Inflate.hpp"
 #include <cstdio>
@@ -12,11 +21,26 @@
 namespace otacon {
 namespace {
 
+/*
+==================
+be32
+
+PNG is big-endian throughout, regardless of the host.
+==================
+*/
 std::uint32_t be32(const std::uint8_t* p) {
     return (std::uint32_t(p[0]) << 24) | (std::uint32_t(p[1]) << 16) |
            (std::uint32_t(p[2]) << 8) | std::uint32_t(p[3]);
 }
 
+/*
+==================
+channelsFor
+
+Samples per pixel for a colour type. Palette images report one, because the
+sample is an index rather than a colour.
+==================
+*/
 int channelsFor(int colorType) {
     switch (colorType) {
         case 0: return 1;   // grayscale
@@ -28,6 +52,16 @@ int channelsFor(int colorType) {
     }
 }
 
+/*
+==================
+paeth
+
+The Paeth predictor: pick whichever of the left, above or upper-left
+neighbour is closest to their linear estimate. It is the most effective of
+the five filters on photographic data and the only one that needs more
+than an add.
+==================
+*/
 int paeth(int a, int b, int c) {
     int p = a + b - c;
     int pa = p > a ? p - a : a - p;
@@ -39,6 +73,15 @@ int paeth(int a, int b, int c) {
 
 } // namespace
 
+/*
+==================
+decodePng
+
+Walk the chunk stream for IHDR, PLTE, tRNS and the IDAT payload, inflate it,
+then undo the per-scanline filter and expand whatever sample format came
+out into RGBA8.
+==================
+*/
 Image decodePng(const std::uint8_t* data, std::size_t len) {
     Image img;
     static const std::uint8_t kSig[8] = {137, 80, 78, 71, 13, 10, 26, 10};
@@ -166,6 +209,13 @@ Image decodePng(const std::uint8_t* data, std::size_t len) {
     return img;
 }
 
+/*
+==================
+loadPng
+
+Read a file into memory and decode it.
+==================
+*/
 Image loadPng(const char* path) {
     Image img;
     std::FILE* f = std::fopen(path, "rb");

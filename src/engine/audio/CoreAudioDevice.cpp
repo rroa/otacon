@@ -1,9 +1,16 @@
-// CoreAudioDevice.cpp — the macOS audio output backend (Apple only).
-//
-// Drives a DefaultOutput AudioUnit with a render callback that pulls mixed PCM
-// from the in-house Mixer. We hand the unit a 22050 Hz stereo-float client
-// format (matching the SFX); the unit resamples to whatever the device wants.
-// This is the only OS-specific audio code — everything above it is in-house.
+/*
+===========================================================================
+
+OTACON ENGINE
+audio/CoreAudioDevice.cpp - CoreAudio output (macOS)
+
+The macOS half of the IAudio seam: an AudioUnit output node whose render
+callback is handed straight to the shared software Mixer. Everything above
+this file is platform-independent, which is exactly the arrangement GLFW has
+with the window.
+
+===========================================================================
+*/
 #ifdef __APPLE__
 #include "audio/IAudio.hpp"
 #include "audio/Mixer.hpp"
@@ -84,6 +91,13 @@ private:
 
 } // namespace
 
+/*
+==================
+createAudio
+
+The factory the engine links against on Apple platforms.
+==================
+*/
 IAudio* createAudio() { return new CoreAudioDevice(); }
 
 } // namespace otacon

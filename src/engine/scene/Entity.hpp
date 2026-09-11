@@ -1,13 +1,20 @@
-// Entity.hpp — a physics-enabled scene body (Otacon engine, generic).
-//
-// This is the engine's reusable equivalent of flixel's FlxObject: an AABB with
-// velocity/acceleration/drag/maxVelocity integrated by a flixel-style midpoint
-// scheme, plus the swept-hull bookkeeping the collision
-// solver needs. It is game-agnostic — any game's movers (a runner's player, a
-// flapping bird) derive from it. Rendering-wise an Entity is a solid colored
-// rectangle (the "geometry-first" representation), or a textured sprite when
-// `texture` is set — the Scene picks per entity, which is what lets a game fade
-// from boxes to art without touching the simulation.
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Entity.hpp - a physics-enabled scene body
+
+This is the engine's reusable equivalent of flixel's FlxObject: an AABB with
+velocity/acceleration/drag/maxVelocity integrated by a flixel-style midpoint
+scheme, plus the swept-hull bookkeeping the collision
+solver needs. It is game-agnostic — any game's movers (a runner's player, a
+flapping bird) derive from it. Rendering-wise an Entity is a solid colored
+rectangle (the "geometry-first" representation), or a textured sprite when
+`texture` is set — the Scene picks per entity, which is what lets a game fade
+from boxes to art without touching the simulation.
+
+===========================================================================
+*/
 #pragma once
 #include "core/math/Vector.hpp"
 #include "core/math/Rect.hpp"

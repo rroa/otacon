@@ -1,4 +1,11 @@
-// Collision.hpp — engine collision solver (faithful flixel separation).
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Collision.hpp - AABB collision separation
+
+===========================================================================
+*/
 #pragma once
 #include "scene/Entity.hpp"
 #include <vector>

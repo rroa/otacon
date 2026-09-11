@@ -1,12 +1,27 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+core/math/Fixed.cpp - Q16.16 fixed-point helpers
+
+The parts of the fixed-point scalar that do not belong in the header.
+
+===========================================================================
+*/
 #include "core/math/Fixed.hpp"
 #include <cstdio>
 
 namespace otacon {
 
-// Integer square root of a Q16.16 value via the classic bit-by-bit method.
-// We compute sqrt over the raw integer scaled up so the result lands back in
-// Q16.16: sqrt(x) in real == sqrt(raw/2^16) == sqrt(raw)/2^8, so we work on
-// (raw << 16) and the result is already Q16.16.
+/*
+==================
+sqrtFx
+
+Integer square root by restoring digit-by-digit binary long division. No
+floating point anywhere, which is the entire point of the fixed-point build:
+the result is bit-identical on every machine.
+==================
+*/
 Fixed sqrtFx(Fixed f) {
     if (f <= Fixed(0)) return Fixed(0);
     std::uint64_t n = std::uint64_t(f.raw()) << Fixed::kFracBits;
@@ -25,6 +40,13 @@ Fixed sqrtFx(Fixed f) {
     return Fixed::fromRaw(Fixed::raw_t(res));
 }
 
+/*
+==================
+toString
+
+Decimal rendering, for the debug overlays.
+==================
+*/
 std::string toString(Fixed f) {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%.5f", f.toDouble());

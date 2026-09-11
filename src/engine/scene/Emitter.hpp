@@ -1,12 +1,19 @@
-// Emitter.hpp — particle emitter (Otacon engine), a port of flixel FlxEmitter.
-//
-// Owns a fixed pool of particle Entities and recycles them round-robin. Two
-// modes: "explode" (burst `quantity` at once — gibs, glass shards) and
-// continuous (one particle every `delay` seconds — drifting smoke). Particles
-// are ordinary Entities, so they fall/drift under the same physics as everything
-// else (gravity via acceleration.y, drag, and spin via angularVelocity). They
-// render as solid rotated quads, or — when `texture` is set — as a random frame
-// of a sprite sheet, spinning with the particle's angle.
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Emitter.hpp - particle emitter
+
+Owns a fixed pool of particle Entities and recycles them round-robin. Two
+modes: "explode" (burst `quantity` at once — gibs, glass shards) and
+continuous (one particle every `delay` seconds — drifting smoke). Particles
+are ordinary Entities, so they fall/drift under the same physics as everything
+else (gravity via acceleration.y, drag, and spin via angularVelocity). They
+render as solid rotated quads, or — when `texture` is set — as a random frame
+of a sprite sheet, spinning with the particle's angle.
+
+===========================================================================
+*/
 #pragma once
 #include "scene/Entity.hpp"
 #include "scene/Camera.hpp"

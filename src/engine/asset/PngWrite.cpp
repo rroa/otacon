@@ -1,8 +1,18 @@
-// PngWrite.cpp — in-house PNG encoder (RGBA8 only).
-//
-// To avoid shipping a DEFLATE *compressor*, the IDAT payload is a valid zlib
-// stream built from *stored* (uncompressed) DEFLATE blocks. The result is a
-// perfectly valid, if larger-than-usual, PNG — ideal for screenshots/diffs.
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/PngWrite.cpp - in-house PNG encoder
+
+Writes RGBA8 back out for screenshots and the cross-backend pixel diff.
+
+Deliberately no compressor: the pixel data goes into stored DEFLATE blocks,
+so the files are large but the code is short and there is nothing to get
+wrong. A screenshot is written once and looked at once, which makes size the
+cheapest thing to spend here.
+
+===========================================================================
+*/
 #include "asset/Image.hpp"
 #include <cstdio>
 #include <vector>
@@ -10,11 +20,25 @@
 namespace otacon {
 namespace {
 
+/*
+==================
+put32
+
+Big-endian append, which is what every PNG field wants.
+==================
+*/
 void put32(std::vector<std::uint8_t>& v, std::uint32_t x) {     // big-endian
     v.push_back(std::uint8_t(x >> 24)); v.push_back(std::uint8_t(x >> 16));
     v.push_back(std::uint8_t(x >> 8));  v.push_back(std::uint8_t(x));
 }
 
+/*
+==================
+crc32
+
+The CRC each chunk carries, computed on the fly rather than from a table.
+==================
+*/
 std::uint32_t crc32(const std::uint8_t* data, std::size_t len) {
     static std::uint32_t table[256];
     static bool init = false;
@@ -31,12 +55,26 @@ std::uint32_t crc32(const std::uint8_t* data, std::size_t len) {
     return c ^ 0xFFFFFFFFu;
 }
 
+/*
+==================
+adler32
+
+The checksum the zlib wrapper ends with.
+==================
+*/
 std::uint32_t adler32(const std::uint8_t* data, std::size_t len) {
     std::uint32_t a = 1, b = 0;
     for (std::size_t i = 0; i < len; ++i) { a = (a + data[i]) % 65521; b = (b + a) % 65521; }
     return (b << 16) | a;
 }
 
+/*
+==================
+writeChunk
+
+Length, type, payload, CRC - the shape of every chunk in the file.
+==================
+*/
 void writeChunk(std::vector<std::uint8_t>& out, const char* type,
                 const std::uint8_t* data, std::size_t len) {
     put32(out, std::uint32_t(len));
@@ -48,6 +86,15 @@ void writeChunk(std::vector<std::uint8_t>& out, const char* type,
 
 } // namespace
 
+/*
+==================
+writePng
+
+Signature, IHDR, the filtered scanlines wrapped in stored DEFLATE blocks
+inside an IDAT, then IEND. Every scanline uses filter 0 (none), since there
+is no compressor for a cleverer filter to help.
+==================
+*/
 bool writePng(const char* path, const Image& img) {
     if (!img.valid()) return false;
     const int w = img.width, h = img.height;

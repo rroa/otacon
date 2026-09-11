@@ -1,11 +1,20 @@
-// GLLegacyRenderer.cpp — OpenGL fixed-function (legacy 2.1) backend.
-//
-// The classic pipeline: no shaders, no VBOs. We set up an orthographic
-// projection with glOrtho and push vertices through immediate mode
-// (glBegin/glColor/glVertex). It consumes the exact same logical-space triangle
-// list as the modern and Vulkan backends, so output geometry is identical;
-// only the submission path differs. Fixed-function functions are GL 1.x and are
-// available by linking the GL library directly — no loader needed.
+/*
+===========================================================================
+
+OTACON ENGINE
+render/gl_legacy/GLLegacyRenderer.cpp - OpenGL fixed-function backend
+
+The same triangles as the modern backend, through glBegin/glVertex and
+glOrtho instead of shaders and buffers.
+
+It exists for two reasons. It still runs where a core profile is not
+available, and it is the proof that the renderer seam is drawn in the right
+place: a backend with no programmable stage at all, and no vertex buffers,
+implements the same interface and produces the same picture. It is also why
+supportsShaders() has to be a capability question rather than an assumption.
+
+===========================================================================
+*/
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include <cstring>
@@ -116,6 +125,13 @@ private:
     bool wireframe_ = false;
 };
 
+/*
+======================
+createRendererGLLegacy
+
+The factory RendererFactory.cpp resolves to when GL_LEGACY is compiled in.
+======================
+*/
 IRenderer* createRendererGLLegacy() { return new GLLegacyRenderer(); }
 
 } // namespace otacon

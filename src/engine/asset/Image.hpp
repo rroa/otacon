@@ -1,4 +1,11 @@
-// Image.hpp — a decoded 32-bit image and the in-house PNG loader.
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/Image.hpp - decoded image and the PNG codec
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 #include <cstddef>

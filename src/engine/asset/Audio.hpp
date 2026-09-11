@@ -1,11 +1,18 @@
-// Audio.hpp — a decoded PCM clip and the in-house CAF (Core Audio Format) loader.
-//
-// Sound effects ship as CAF files holding uncompressed little-endian
-// 16-bit PCM (e.g. 22050 Hz, mono — see a game's assets/sound/convert.sh). CAF is a simple
-// chunked, big-endian container: an 8-byte file header, then ('type', int64 size,
-// payload) chunks. We only need two: 'desc' (the audio format) and 'data' (the
-// samples). Everything is decoded to interleaved float in [-1, 1] so the mixer
-// has one uniform representation.
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/Audio.hpp - decoded PCM and the CAF loader
+
+Sound effects ship as CAF files holding uncompressed little-endian
+16-bit PCM (e.g. 22050 Hz, mono — see a game's assets/sound/convert.sh). CAF is a simple
+chunked, big-endian container: an 8-byte file header, then ('type', int64 size,
+payload) chunks. We only need two: 'desc' (the audio format) and 'data' (the
+samples). Everything is decoded to interleaved float in [-1, 1] so the mixer
+has one uniform representation.
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 #include <cstddef>

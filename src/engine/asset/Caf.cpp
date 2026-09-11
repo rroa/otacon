@@ -1,4 +1,18 @@
-// Caf.cpp — the in-house CAF (Core Audio Format) decoder declared in Audio.hpp.
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/Caf.cpp - in-house CAF audio decoder
+
+Reads Core Audio Format files - the form the original game shipped its sounds
+in - and decodes LPCM to interleaved float.
+
+CAF is a big-endian chunked container, and only two chunks matter here: desc
+gives the format, data gives the samples. Everything is normalised to float
+on load so the mixer has exactly one representation to sum.
+
+===========================================================================
+*/
 #include "asset/Audio.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -7,23 +21,60 @@
 namespace otacon {
 namespace {
 
-// CAF stores all its container integers/floats BIG-ENDIAN (the PCM samples
-// themselves follow the format flags). These read big-endian fields.
+/*
+==================
+beU16
+
+CAF is big-endian throughout.
+==================
+*/
 std::uint16_t beU16(const std::uint8_t* p) { return std::uint16_t(p[0] << 8 | p[1]); }
+
+/*
+==================
+beU32
+
+CAF is big-endian throughout.
+==================
+*/
 std::uint32_t beU32(const std::uint8_t* p) {
     return std::uint32_t(p[0]) << 24 | std::uint32_t(p[1]) << 16 |
            std::uint32_t(p[2]) << 8  | std::uint32_t(p[3]);
 }
+
+/*
+==================
+beU64
+
+CAF is big-endian throughout.
+==================
+*/
 std::uint64_t beU64(const std::uint8_t* p) {
     return std::uint64_t(beU32(p)) << 32 | beU32(p + 4);
 }
+
+/*
+==================
+beF64
+
+The sample rate is stored as a big-endian IEEE double.
+==================
+*/
 double beF64(const std::uint8_t* p) {
     std::uint64_t bits = beU64(p);
     double d; std::memcpy(&d, &bits, 8);
     return d;
 }
 
-// One LPCM sample -> float in [-1, 1], honouring width/endianness/float-ness.
+/*
+==================
+sampleToFloat
+
+One sample, whatever its width and endianness, normalised to [-1,1]. Signed
+integer formats divide by their own max, so 16-bit and 24-bit material ends
+up at the same loudness.
+==================
+*/
 float sampleToFloat(const std::uint8_t* p, int bits, bool littleEndian, bool isFloat) {
     auto bytes = [&](int n) {                       // assemble `n` bytes, native order
         std::uint32_t v = 0;
@@ -52,6 +103,15 @@ float sampleToFloat(const std::uint8_t* p, int bits, bool littleEndian, bool isF
 
 } // namespace
 
+/*
+==================
+decodeCaf
+
+Walk the chunk list for desc and data, then convert every sample. A chunk
+size of -1 means 'to the end of the file', which is how a stream that was
+never finalised reports its length.
+==================
+*/
 AudioClip decodeCaf(const std::uint8_t* data, std::size_t len) {
     AudioClip clip;
     if (!data || len < 8 || std::memcmp(data, "caff", 4) != 0) return clip;
@@ -101,6 +161,13 @@ AudioClip decodeCaf(const std::uint8_t* data, std::size_t len) {
     return clip;
 }
 
+/*
+==================
+loadCaf
+
+Read a file into memory and decode it.
+==================
+*/
 AudioClip loadCaf(const char* path) {
     AudioClip clip;
     std::FILE* f = std::fopen(path, "rb");

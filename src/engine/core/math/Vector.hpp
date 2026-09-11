@@ -1,9 +1,16 @@
-// Vector.hpp — in-house vector math for 2/3/4 dimensions.
-//
-// We template each vector on the scalar type T so the same code serves the
-// float build and the Fixed (Q16.16) build. The heavier operations (length,
-// normalize, distance) live in Vector.cpp and are explicitly instantiated
-// there for every (dimension x scalar) combination the engine uses.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/math/Vector.hpp - 2/3/4-dimensional vector math
+
+We template each vector on the scalar type T so the same code serves the
+float build and the Fixed (Q16.16) build. The heavier operations (length,
+normalize, distance) live in Vector.cpp and are explicitly instantiated
+there for every (dimension x scalar) combination the engine uses.
+
+===========================================================================
+*/
 #pragma once
 #include "core/math/Scalar.hpp"
 

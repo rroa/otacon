@@ -1,5 +1,13 @@
-// Rect.hpp — axis-aligned rectangle (origin + size), the workhorse of the
-// 2D collision system (mirrors the CGRect hulls used by flixel).
+/*
+===========================================================================
+
+OTACON ENGINE
+core/math/Rect.hpp - axis-aligned rectangle
+
+2D collision system (mirrors the CGRect hulls used by flixel).
+
+===========================================================================
+*/
 #pragma once
 #include "core/math/Vector.hpp"
 

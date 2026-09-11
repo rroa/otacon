@@ -1,9 +1,19 @@
-// Vector.cpp — out-of-line vector operations + explicit instantiation.
-//
-// length()/normalized() need a square root, which differs between scalar types
-// (std::sqrt for float, our bit-by-bit sqrtFx for Fixed). Keeping them here in
-// one translation unit, instantiated explicitly, avoids pulling <cmath> into
-// every header and shows how a small math kernel is shared across dimensions.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/math/Vector.cpp - vector math, explicitly instantiated
+
+The operations heavy enough not to want in the header - length, normalize,
+distance - defined once and explicitly instantiated for every scalar the
+engine actually uses.
+
+Explicit instantiation rather than a header-only template keeps the maths in
+one translation unit and makes the set of supported scalars a deliberate
+list rather than whatever happened to get used.
+
+===========================================================================
+*/
 #include "core/math/Vector.hpp"
 
 namespace otacon {

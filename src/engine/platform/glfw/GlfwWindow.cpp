@@ -1,5 +1,16 @@
-// GlfwWindow.cpp — the GLFW implementation of IWindow. The ONLY file (besides
-// the GL loader) that mentions GLFW, keeping the dependency fully contained.
+/*
+===========================================================================
+
+OTACON ENGINE
+platform/glfw/GlfwWindow.cpp - GLFW window backend
+
+Window, context and input, behind IWindow. This file and the physical key
+table in it are the only places in the engine that name a key code: every
+layer above sees logical Actions, which is what lets a game be rebound or
+re-hosted without touching game code.
+
+===========================================================================
+*/
 #include "platform/Window.hpp"
 #if defined(OTACON_BACKEND_VULKAN)
 #  define GLFW_INCLUDE_VULKAN            // makes glfw declare glfwCreateWindowSurface
@@ -166,6 +177,13 @@ private:
     int          pendingSelect_ = -1;
 };
 
+/*
+==================
+createWindowGlfw
+
+The factory PlatformFactory.cpp resolves to when GLFW is compiled in.
+==================
+*/
 IWindow* createWindowGlfw(const WindowConfig& cfg) {
     auto* w = new GlfwWindow(cfg);
     if (!w->valid()) { delete w; return nullptr; }

@@ -1,10 +1,17 @@
-// Mixer.hpp — the in-house software mixer shared by every audio backend.
-//
-// Holds the uploaded sounds and a pool of active one-shot voices, and sums them
-// into an interleaved stereo float buffer. `play()` runs on the game thread and
-// `render()` on the platform's real-time audio thread, so a short mutex guards
-// the voice list (fine at this scale; a teaching port, not a DAW). Sounds are
-// resampled to the mixer rate on upload, so `render()` never has to.
+/*
+===========================================================================
+
+OTACON ENGINE
+audio/Mixer.hpp - software mixer
+
+Holds the uploaded sounds and a pool of active one-shot voices, and sums them
+into an interleaved stereo float buffer. `play()` runs on the game thread and
+`render()` on the platform's real-time audio thread, so a short mutex guards
+the voice list (fine at this scale; a teaching port, not a DAW). Sounds are
+resampled to the mixer rate on upload, so `render()` never has to.
+
+===========================================================================
+*/
 #pragma once
 #include "audio/IAudio.hpp"
 #include "asset/Audio.hpp"

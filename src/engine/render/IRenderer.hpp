@@ -1,11 +1,18 @@
-// IRenderer.hpp — the renderer seam.
-//
-// Design choice that makes "identical behavior across backends" provable:
-// a backend implements ONLY triangle rasterization (submitTriangles) plus
-// frame lifecycle. Every higher-level shape — filled rect, oriented line,
-// rectangle outline, bitmap text — is tessellated once here in the base class,
-// so all three backends draw byte-for-byte identical geometry. The only thing
-// that differs per backend is *how* those triangles reach the screen.
+/*
+===========================================================================
+
+OTACON ENGINE
+render/IRenderer.hpp - the renderer seam
+
+Design choice that makes "identical behavior across backends" provable:
+a backend implements ONLY triangle rasterization (submitTriangles) plus
+frame lifecycle. Every higher-level shape — filled rect, oriented line,
+rectangle outline, bitmap text — is tessellated once here in the base class,
+so all three backends draw byte-for-byte identical geometry. The only thing
+that differs per backend is *how* those triangles reach the screen.
+
+===========================================================================
+*/
 #pragma once
 #include "render/RenderTypes.hpp"
 #include <cstddef>
@@ -30,6 +37,14 @@ public:
     virtual void setWireframe(bool on) = 0;
     virtual const char* name() const = 0;
 
+
+/*
+=============================================================================
+
+                                  TEXTURES
+
+=============================================================================
+*/
     // ---- Textures ----------------------------------------------------------
     // `repeat` selects wrap mode: REPEAT lets UVs > 1 tile the texture (used to
     // tile wall bricks across a building in one draw); otherwise CLAMP_TO_EDGE.
@@ -89,6 +104,14 @@ public:
                           float angleDeg, float u0 = 0, float v0 = 0, float u1 = 1, float v1 = 1,
                           Color tint = {1, 1, 1, 1});
 
+
+/*
+=============================================================================
+
+                                 PRIMITIVES
+
+=============================================================================
+*/
     // ---- High-level 2D primitives (implemented in IRenderer.cpp) ----------
     void fillRect(float x, float y, float w, float h, Color c);
     // Filled rect rotated by `angleDeg` around its centre (cx,cy) — for particles.
@@ -112,6 +135,14 @@ public:
     void captureNextFrame(const char* path) { capturePath_ = path; }
 
 protected:
+
+/*
+=============================================================================
+
+                                BACKEND HOOKS
+
+=============================================================================
+*/
     // Backend hooks.
     virtual bool onInit(IWindow* window) = 0;
     virtual void onBeginFrame(Color clear) = 0;

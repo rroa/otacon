@@ -1,3 +1,18 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+App.cpp - the engine runtime
+
+Owns the window, renderer, audio device, clock and debug runtime, and drives
+an IGame through init / input / update / render.
+
+This is the only file that knows the order those things happen in. A game
+sees a dt and a renderer; it never polls an event queue, never swaps a
+buffer, and never decides how many simulation steps a frame is worth.
+
+===========================================================================
+*/
 #include "App.hpp"
 #include "IGame.hpp"
 #include "render/IRenderer.hpp"
@@ -9,6 +24,15 @@
 
 namespace otacon {
 
+/*
+==================
+App::init
+
+Bring up the window, then the renderer, then audio, then the game. The order
+matters: the renderer needs a live context, and the game's init() is where
+it uploads textures, so it has to come last.
+==================
+*/
 bool App::init(const WindowConfig& cfg, IGame* game, const char* assetDir) {
     logicalW_ = cfg.logicalWidth > 0 ? cfg.logicalWidth : 480;
     logicalH_ = cfg.logicalHeight > 0 ? cfg.logicalHeight : 320;
@@ -35,6 +59,15 @@ bool App::init(const WindowConfig& cfg, IGame* game, const char* assetDir) {
     return true;
 }
 
+/*
+======================
+App::handleGlobalInput
+
+The keys the engine owns, handled before the game sees the frame. Every one
+is a debug or presentation control, so no game can shadow them and no game
+has to implement them.
+======================
+*/
 void App::handleGlobalInput(const InputFrame& in) {
     if (in.isPressed(Action::Quit))            window_->requestClose();
     if (in.isPressed(Action::ToggleUi))        debug_.toggleUi();
@@ -52,7 +85,14 @@ void App::handleGlobalInput(const InputFrame& in) {
     if (in.isPressed(Action::Screenshot))      wantShot_ = true;
 }
 
-// Frame-time graph + draw/vertex counts + live memory-manager stats.
+/*
+==================
+App::drawPerf
+
+The perf overlay: a frame-time graph with the 60 and 30 fps budgets marked,
+the renderer's draw statistics, and the memory manager's live totals.
+==================
+*/
 void App::drawPerf() {
     const float x = 3, y = 22, w = 116, h = 28;
     renderer_->fillRect(x - 1, y - 1, w + 2, h + 2, Color{0, 0, 0, 0.55f});
@@ -78,6 +118,14 @@ void App::drawPerf() {
     renderer_->drawText(buf, x, y + h + 9, 1.f, Color{0.7f, 0.95f, 1.f, 1});
 }
 
+/*
+==================
+App::drawHud
+
+The state line - backend, scalar type, frame rate, timestep policy, view
+preset - plus whatever the game wants to say about itself.
+==================
+*/
 void App::drawHud() {
     if (!debug_.enabled(DebugView::Hud)) return;
     char line[256];
@@ -91,18 +139,54 @@ void App::drawHud() {
         renderer_->drawText("PAUSED  O-STEP", 3, float(logicalH_) - 8, 1.f, Color{1, 0.5f, 0.5f, 1});
 }
 
+/*
+==================
+App::setCapture
+
+Render a fixed number of deterministic frames, save a PNG and quit. The dev
+UI is hidden so the capture is the scene alone, which is what makes the
+cross-backend comparison meaningful.
+==================
+*/
 void App::setCapture(const char* path, int frames) {
     capturePath_ = path;
     captureFrames_ = frames > 0 ? frames : 60;
     debug_.setUiHidden(true);   // clean, deterministic frame (no HUD/legend/overlays)
 }
 
+/*
+==================
+App::setRecord
+
+Save every frame to a numbered PNG, for assembling a video of a run.
+==================
+*/
 void App::setRecord(const char* dir, int frames) {
     recordDir_ = dir;
     recordFrames_ = frames > 0 ? frames : 120;
     debug_.setUiHidden(true);   // clean frames for the GIF
 }
 
+/*
+=============================================================================
+
+                                  MAIN LOOP
+
+=============================================================================
+*/
+
+/*
+==================
+App::run
+
+The main loop. Poll, let the engine take its keys, let the game take the rest,
+step the simulation however many times the clock says, then render.
+
+While recording, the loop ignores a window-close and steps exactly one fixed
+frame per capture: the frame count is the authoritative stop, and a recording
+that drifted with real time would not be reproducible.
+==================
+*/
 void App::run() {
     // While recording, ignore a spurious window-close (an offscreen window can be
     // closed by the OS mid-run); the frame count is the authoritative stop.
@@ -152,6 +236,15 @@ void App::run() {
     }
 }
 
+/*
+==================
+App::shutdown
+
+Tear down in the reverse of init. The game frees its GPU resources first,
+while the renderer it allocated them from is still alive, and the memory
+report comes last so it can see everything that was released.
+==================
+*/
 void App::shutdown() {
     if (game_) game_->shutdown();          // free game GPU resources first
     if (audio_)    { delete audio_; audio_ = nullptr; }   // stops the audio thread

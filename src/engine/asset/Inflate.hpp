@@ -1,8 +1,16 @@
-// Inflate.hpp — in-house DEFLATE decompressor (RFC 1951) + zlib wrapper
-// (RFC 1950). Written from scratch (no zlib/miniz) so the PNG loader is fully
-// our own. The algorithm: read LSB-first bits, decode Huffman-coded symbols
-// (literals + length/distance pairs), and reconstruct the byte stream via an
-// LZ77 sliding window.
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/Inflate.hpp - DEFLATE decoder
+
+(RFC 1950). Written from scratch (no zlib/miniz) so the PNG loader is fully
+our own. The algorithm: read LSB-first bits, decode Huffman-coded symbols
+(literals + length/distance pairs), and reconstruct the byte stream via an
+LZ77 sliding window.
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 #include <cstddef>

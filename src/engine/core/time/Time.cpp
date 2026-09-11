@@ -1,22 +1,71 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+core/time/Time.cpp - clock and frame stepping
+
+Turns the OS monotonic clock into the per-frame dt the simulation consumes,
+under one of two policies. Variable is what the original flixel game does and
+stays the default so the feel is unchanged; fixed accumulates real time and
+emits whole steps, which is what makes a run reproducible regardless of frame
+rate. F5 switches between them at runtime so the difference can be felt.
+
+===========================================================================
+*/
 #include "core/time/Time.hpp"
 #include <chrono>
 
 namespace otacon {
 
 using ns = std::chrono::nanoseconds;
+
+/*
+==================
+nowNs
+
+The monotonic clock, in nanoseconds. Monotonic and not wall-clock: a clock
+that can be stepped backwards by NTP would hand the simulation a negative
+dt.
+==================
+*/
 static std::uint64_t nowNs() {
     return std::uint64_t(std::chrono::duration_cast<ns>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
 }
 
+/*
+==================
+Clock
+==================
+*/
 Clock::Clock() : start_(nowNs()) {}
+
+/*
+==================
+Clock::now
+==================
+*/
 double Clock::now() const { return double(nowNs() - start_) * 1e-9; }
 
+/*
+==================
+TimeManager
+==================
+*/
 TimeManager::TimeManager(Policy policy, double targetFps, double maxElapsed)
     : policy_(policy), fixedDt_(1.0 / targetFps), maxElapsed_(maxElapsed) {
     last_ = clock_.now();
 }
 
+/*
+===========================
+TimeManager::nudgeTimeScale
+
+Step through preset time scales. Scaling the real elapsed time fed into the
+stepping, rather than the dt handed out, is what keeps fixed-timestep
+determinism intact while in slow motion.
+===========================
+*/
 void TimeManager::nudgeTimeScale(int dir) {
     static const double presets[] = {0.1, 0.25, 0.5, 1.0, 2.0, 4.0};
     int idx = 3;   // 1.0x
@@ -27,6 +76,16 @@ void TimeManager::nudgeTimeScale(int dir) {
     timeScale_ = presets[idx];
 }
 
+/*
+=======================
+TimeManager::beginFrame
+
+One frame of the clock. Variable clamps the elapsed time and returns a single
+step - the clamp is what stops a breakpoint or a dragged window from
+teleporting everything through a wall on resume. Fixed accumulates and
+returns however many whole steps have banked up.
+=======================
+*/
 int TimeManager::beginFrame() {
     double t = clock_.now();
     double frameTime = t - last_;

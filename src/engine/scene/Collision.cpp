@@ -1,12 +1,47 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Collision.cpp - AABB collision separation
+
+A port of flixel's FlxU solveXCollision / solveYCollision, specialised to the
+single collision offset the original game uses.
+
+The solver never looks at how a body moved - it reads the swept hulls
+Entity::updateMotion already grew, and the unswept extents it stashed in the
+other axis' hull. Separating one axis at a time is what gives the response
+its character: a body that lands stops dead, with no restitution and no
+chance of the two axes fighting each other into a jitter.
+
+===========================================================================
+*/
 #include "scene/Collision.hpp"
 
 namespace otacon {
 
+/*
+==================
+RE
+
+flixel's rounding epsilon, used to decide whether two edges really overlap
+or merely touch.
+==================
+*/
 static Real RE() { return roundingError(); }
 
-// Port of FlxU.solveXCollision specialized to a single collision offset (the
-// only case the original game uses). `colHullY.w` holds each body's *unswept*
-// width, `colHullX` the swept hull. See docs/engine-notes for the derivation.
+/*
+==================
+solveX
+
+Horizontal separation. o1/o2 are the two bodies' motion this frame; the
+p1hn2 chain works out which side the collision is on, since that decides
+both which collide flags apply and which way to push.
+
+An overlap larger than 80% of a hull is rejected rather than resolved: at
+that point the bodies are almost certainly on opposite sides of each other
+and pushing would teleport one through the other.
+==================
+*/
 bool solveX(Entity& A, Entity& B) {
     Real o1 = A.colVector.x, o2 = B.colVector.x;
     if (o1 == o2) return false;
@@ -61,7 +96,14 @@ bool solveX(Entity& A, Entity& B) {
     return true;
 }
 
-// Port of FlxU.solveYCollision (single offset). `colHullX.h` is unswept height.
+/*
+==================
+solveY
+
+Vertical separation. The same shape as solveX, but this is the pass that
+sets onFloor, so it is what a platformer's grounded test ultimately reads.
+==================
+*/
 bool solveY(Entity& A, Entity& B) {
     Real o1 = A.colVector.y, o2 = B.colVector.y;
     if (o1 == o2) return false;
@@ -125,6 +167,23 @@ bool solveY(Entity& A, Entity& B) {
     return true;
 }
 
+/*
+=============================================================================
+
+                                 BROAD PHASE
+
+=============================================================================
+*/
+
+/*
+==================
+collideWithGroup
+
+FlxU collideObject:withGroup:. A cheap rejection on the swept hulls first,
+then X and then Y - never both at once. Running X to completion before
+starting Y is what stops a body wedged in a corner from oscillating.
+==================
+*/
 bool collideWithGroup(Entity& obj, const std::vector<Entity*>& group) {
     if (!obj.exists || !obj.solid) return false;
     bool c = false;

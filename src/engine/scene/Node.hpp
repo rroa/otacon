@@ -1,10 +1,17 @@
-// Node.hpp — a element of the scene tree.
-//
-// A Scene owns an ordered list of Nodes and drives them: it ticks each node's
-// update() and then walks them in order to render(). Concrete nodes are things
-// like a layer of sprites, a particle emitter, or a custom drawer. This is what
-// keeps rendering in one place — the Scene renders the tree, nothing draws on
-// the side.
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Node.hpp - an element of the scene tree
+
+A Scene owns an ordered list of Nodes and drives them: it ticks each node's
+update() and then walks them in order to render(). Concrete nodes are things
+like a layer of sprites, a particle emitter, or a custom drawer. This is what
+keeps rendering in one place — the Scene renders the tree, nothing draws on
+the side.
+
+===========================================================================
+*/
 #pragma once
 #include "core/math/Scalar.hpp"
 

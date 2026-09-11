@@ -1,10 +1,17 @@
-// Debug.hpp — in-house debug runtime.
-//
-// Holds a set of independently toggleable "views" (overlays/inspectors) that
-// can be flipped on and off while the game is running. The Game queries these
-// flags each frame to decide what extra geometry/text to draw. Keeping this as
-// plain state (not baked into the renderer) means every graphics backend gets
-// the same debug visualization for free.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/debug/Debug.hpp - runtime debug views
+
+Holds a set of independently toggleable "views" (overlays/inspectors) that
+can be flipped on and off while the game is running. The Game queries these
+flags each frame to decide what extra geometry/text to draw. Keeping this as
+plain state (not baked into the renderer) means every graphics backend gets
+the same debug visualization for free.
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 

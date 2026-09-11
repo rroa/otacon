@@ -1,4 +1,11 @@
-// RenderTypes.hpp — shared, backend-agnostic rendering types.
+/*
+===========================================================================
+
+OTACON ENGINE
+render/RenderTypes.hpp - backend-agnostic render types
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 

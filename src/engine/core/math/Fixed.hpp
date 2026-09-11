@@ -1,25 +1,32 @@
-// Fixed.hpp — in-house Q16.16 fixed-point scalar.
-//
-// Teaching notes
-// --------------
-// A fixed-point number stores a fraction as an integer scaled by a constant.
-// Here we use Q16.16: a 32-bit integer where the top 16 bits are the integer
-// part and the bottom 16 bits are the fraction (resolution 1/65536 ~= 1.5e-5).
-//
-//   real value  ==  raw / 65536
-//
-// Why bother, when modern FPUs are fast?  Three didactic reasons:
-//   1. Determinism: integer math gives bit-identical results on every CPU,
-//      which matters for replays / lockstep netcode.
-//   2. Historically (and on tiny MCUs / GPUs without an FPU) integer ALUs were
-//      far cheaper than floating point — the classic "perf gain".
-//   3. It makes the cost of precision and range *visible*: Q16.16 can only
-//      represent +-32767.99998, so you must reason about overflow.
-//
-// Range caveat: an endless runner's world X grows without bound as you
-// run, so it would overflow Q16.16. That is exactly why the live simulation
-// defaults to float (see Scalar.hpp) and fixed-point is an opt-in teaching
-// build — the limitation is part of the lesson.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/math/Fixed.hpp - Q16.16 fixed-point scalar
+
+Teaching notes
+--------------
+A fixed-point number stores a fraction as an integer scaled by a constant.
+Here we use Q16.16: a 32-bit integer where the top 16 bits are the integer
+part and the bottom 16 bits are the fraction (resolution 1/65536 ~= 1.5e-5).
+
+  real value  ==  raw / 65536
+
+Why bother, when modern FPUs are fast?  Three didactic reasons:
+  1. Determinism: integer math gives bit-identical results on every CPU,
+     which matters for replays / lockstep netcode.
+  2. Historically (and on tiny MCUs / GPUs without an FPU) integer ALUs were
+     far cheaper than floating point — the classic "perf gain".
+  3. It makes the cost of precision and range *visible*: Q16.16 can only
+     represent +-32767.99998, so you must reason about overflow.
+
+Range caveat: an endless runner's world X grows without bound as you
+run, so it would overflow Q16.16. That is exactly why the live simulation
+defaults to float (see Scalar.hpp) and fixed-point is an opt-in teaching
+build — the limitation is part of the lesson.
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 #include <string>

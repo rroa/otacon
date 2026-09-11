@@ -1,13 +1,21 @@
-// Scene.hpp — the scene: a camera, an ordered entity draw list, and a list of
-// Nodes the Scene owns and drives. Each frame the Scene ticks every node's
-// update() and then renders, in order: the entity layer (each Entity as a solid
-// or textured rect, parallax via its scrollFactor), then the nodes on top
-// (emitters, sprite drawers), then the debug overlays. Keeping the node list
-// here is what makes the Scene drive all rendering — nothing draws on the side.
-//
-// Entities are the simulation/collision data (buildings, the player box); the
-// game rebuilds the draw list each frame. Nodes are longer-lived scene pieces
-// (particle emitters, the player sprite, building facades) added once per mode.
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Scene.hpp - camera, entity layer and node tree
+
+Nodes the Scene owns and drives. Each frame the Scene ticks every node's
+update() and then renders, in order: the entity layer (each Entity as a solid
+or textured rect, parallax via its scrollFactor), then the nodes on top
+(emitters, sprite drawers), then the debug overlays. Keeping the node list
+here is what makes the Scene drive all rendering — nothing draws on the side.
+
+Entities are the simulation/collision data (buildings, the player box); the
+game rebuilds the draw list each frame. Nodes are longer-lived scene pieces
+(particle emitters, the player sprite, building facades) added once per mode.
+
+===========================================================================
+*/
 #pragma once
 #include "scene/Camera.hpp"
 #include "scene/Node.hpp"

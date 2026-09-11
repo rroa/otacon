@@ -1,4 +1,11 @@
-// Camera.hpp — 2D scrolling camera (faithful flixel follow + parallax).
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Camera.hpp - 2D scrolling camera
+
+===========================================================================
+*/
 #pragma once
 #include "scene/Entity.hpp"
 

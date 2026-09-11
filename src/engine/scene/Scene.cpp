@@ -1,8 +1,30 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+scene/Scene.cpp - the scene draw order
+
+Everything the game shows goes through here, in one fixed order: backdrop
+nodes, the entity layer, foreground nodes, then debug overlays. Nothing
+draws on the side, which is why a debug view can be added once and work
+for every game and every backend.
+
+===========================================================================
+*/
 #include "scene/Scene.hpp"
 #include <cmath>
 
 namespace otacon {
 
+/*
+==================
+Scene::render
+
+The draw order, back to front. Backdrop nodes come before the entity layer
+so the farthest parallax sits behind the world; overlays come last so they
+are never occluded by the thing they are describing.
+==================
+*/
 void Scene::render(IRenderer& r, const DebugRuntime& dbg) const {
     // 0) backdrop nodes — the farthest parallax, behind even the entity layer.
     for (const Node* n : backdrop_)
@@ -25,6 +47,15 @@ void Scene::render(IRenderer& r, const DebugRuntime& dbg) const {
     renderOverlays(r, dbg);
 }
 
+/*
+=====================
+Scene::renderOverlays
+
+The debug views, each independent and each keyed off DebugRuntime. They are
+drawn from the same entity list the game just rendered, so an overlay can
+never disagree with what is on screen.
+=====================
+*/
 void Scene::renderOverlays(IRenderer& r, const DebugRuntime& dbg) const {
     const float W = float(camera.width()), H = float(camera.height());
 

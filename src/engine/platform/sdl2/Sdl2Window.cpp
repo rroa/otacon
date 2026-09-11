@@ -1,6 +1,17 @@
-// Sdl2Window.cpp — the SDL2 implementation of IWindow. The second window backend
-// (selectable with WINDOW_BACKEND=SDL2), proving the IWindow seam is real: nothing
-// above the platform layer changes. The ONLY file that mentions SDL2.
+/*
+===========================================================================
+
+OTACON ENGINE
+platform/sdl2/Sdl2Window.cpp - SDL2 window backend
+
+The same IWindow, over SDL2 instead of GLFW, mapping SDL's key codes onto the
+same logical Actions.
+
+Having two of these is what keeps the window seam honest - an interface with
+exactly one implementation is only a guess at an abstraction.
+
+===========================================================================
+*/
 #include "platform/Window.hpp"
 #define SDL_MAIN_HANDLED                 // we own main(); don't let SDL hijack it
 #include <SDL.h>
@@ -197,6 +208,13 @@ private:
 #endif
 };
 
+/*
+==================
+createWindowSdl2
+
+The factory PlatformFactory.cpp resolves to when SDL2 is compiled in.
+==================
+*/
 IWindow* createWindowSdl2(const WindowConfig& cfg) {
     auto* w = new Sdl2Window(cfg);
     if (!w->valid()) { delete w; return nullptr; }

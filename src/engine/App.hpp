@@ -1,5 +1,13 @@
-// App.hpp — the Otacon engine runtime. Owns the platform window, renderer,
-// time manager and debug runtime; runs the main loop and drives an IGame.
+/*
+===========================================================================
+
+OTACON ENGINE
+App.hpp - the engine runtime
+
+time manager and debug runtime; runs the main loop and drives an IGame.
+
+===========================================================================
+*/
 #pragma once
 #include "platform/Window.hpp"
 #include "core/time/Time.hpp"

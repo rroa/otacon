@@ -1,3 +1,20 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+asset/Inflate.cpp - in-house DEFLATE decoder
+
+Enough of RFC 1951 to read what a PNG encoder produces: stored, fixed-Huffman
+and dynamic-Huffman blocks, with the RFC 1950 zlib wrapper on top.
+
+DEFLATE is two ideas stacked. LZ77 replaces a repeat with a (distance,
+length) back-reference into what has already been decoded, and Huffman coding
+then gives the common symbols shorter codes. The back-reference window is the
+output buffer itself, which is why a match may overlap the point it is
+copying to.
+
+===========================================================================
+*/
 #include "asset/Inflate.hpp"
 
 namespace otacon::inflate {
@@ -68,6 +85,13 @@ const int kDistBase[30]  = {1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,5
 const int kDistExtra[30] = {0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13};
 const int kCLOrder[19]   = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
 
+/*
+==================
+buildFixed
+
+The fixed code lengths from the RFC, for blocks that skip sending a table.
+==================
+*/
 void buildFixed(Huffman& lit, Huffman& dist) {
     int litLen[288];
     for (int i = 0;   i < 144; ++i) litLen[i] = 8;
@@ -80,6 +104,16 @@ void buildFixed(Huffman& lit, Huffman& dist) {
     dist.build(distLen, 30);
 }
 
+/*
+==================
+inflateBlock
+
+The decode loop: a symbol under 256 is a literal, 256 ends the block, and
+anything above is a length that is followed by a distance. The copy must be
+byte-by-byte because a match is allowed to overlap its own destination -
+that is how a run of one byte is encoded.
+==================
+*/
 bool inflateBlock(BitReader& br, const Huffman& lit, const Huffman& dist,
                   std::vector<std::uint8_t>& out) {
     for (;;) {
@@ -103,6 +137,15 @@ bool inflateBlock(BitReader& br, const Huffman& lit, const Huffman& dist,
     }
 }
 
+/*
+==================
+readDynamic
+
+Read the block's own Huffman tables, which are themselves Huffman-coded by a
+third table of code lengths. Three levels of indirection to save a few
+hundred bytes, which tells you how tight the format's era was.
+==================
+*/
 bool readDynamic(BitReader& br, Huffman& lit, Huffman& dist) {
     int hlit  = br.getBits(5) + 257;
     int hdist = br.getBits(5) + 1;
@@ -138,6 +181,13 @@ bool readDynamic(BitReader& br, Huffman& lit, Huffman& dist) {
 
 } // namespace
 
+/*
+==================
+raw
+
+Inflate a bare DEFLATE stream, block by block, until the final-block flag.
+==================
+*/
 bool raw(const std::uint8_t* data, std::size_t len, std::vector<std::uint8_t>& out) {
     BitReader br{data, len};
     bool final = false;
@@ -167,6 +217,14 @@ bool raw(const std::uint8_t* data, std::size_t len, std::vector<std::uint8_t>& o
     return true;
 }
 
+/*
+==================
+zlib
+
+Strip the two-byte zlib header and inflate what follows. The trailing Adler-32
+is not checked: a corrupt PNG will have failed the decode long before.
+==================
+*/
 bool zlib(const std::uint8_t* data, std::size_t len, std::vector<std::uint8_t>& out) {
     if (len < 6) return false;
     // byte0: CMF (compression method/flags), byte1: FLG. Method must be 8.

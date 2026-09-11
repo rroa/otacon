@@ -1,10 +1,17 @@
-// Window.hpp — pluggable windowing/context/input seam.
-//
-// The rest of the engine only ever sees IWindow + InputFrame, never GLFW or
-// SDL. A backend is chosen at build time (WINDOW_BACKEND in build.cfg) and
-// instantiated by createWindow(). Graphics backends ask the window for the
-// bits they need: a GL context (makeContextCurrent/glProcAddress/swapBuffers)
-// or Vulkan surface plumbing (vulkanInstanceExtensions/createVulkanSurface).
+/*
+===========================================================================
+
+OTACON ENGINE
+platform/Window.hpp - window, input and context seam
+
+The rest of the engine only ever sees IWindow + InputFrame, never GLFW or
+SDL. A backend is chosen at build time (WINDOW_BACKEND in build.cfg) and
+instantiated by createWindow(). Graphics backends ask the window for the
+bits they need: a GL context (makeContextCurrent/glProcAddress/swapBuffers)
+or Vulkan surface plumbing (vulkanInstanceExtensions/createVulkanSurface).
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 #include <string>
@@ -19,6 +26,14 @@ enum class GraphicsApi { OpenGLLegacy, OpenGLModern, Vulkan };
 
 // Logical input actions — backends map physical keys/buttons onto these so the
 // game never mentions a key code. `held` is level, `pressed` is a rising edge.
+
+/*
+=============================================================================
+
+                                LOGICAL INPUT
+
+=============================================================================
+*/
 enum class Action : std::uint8_t {
     Jump,            // touch / space / mouse — the one gameplay input
     NextMode, PrevMode,
@@ -64,6 +79,14 @@ struct WindowConfig {
     bool vsync = true;
 };
 
+
+/*
+=============================================================================
+
+                                  THE SEAM
+
+=============================================================================
+*/
 class IWindow {
 public:
     virtual ~IWindow() = default;

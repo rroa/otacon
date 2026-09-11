@@ -1,9 +1,16 @@
-// IGame.hpp — the contract every game implements to run on the Otacon engine.
-//
-// The engine (App) owns the window, renderer, timing and debug runtime, and
-// drives an IGame through init/input/update/render. Each game is one IGame;
-// another is simply another implementation. Games never touch GLFW/GL/Vulkan — they
-// see only this context and the engine's scene/render/math APIs.
+/*
+===========================================================================
+
+OTACON ENGINE
+IGame.hpp - the game contract
+
+The engine (App) owns the window, renderer, timing and debug runtime, and
+drives an IGame through init/input/update/render. Each game is one IGame;
+another is simply another implementation. Games never touch GLFW/GL/Vulkan — they
+see only this context and the engine's scene/render/math APIs.
+
+===========================================================================
+*/
 #pragma once
 #include "core/math/Scalar.hpp"
 #include "render/RenderTypes.hpp"

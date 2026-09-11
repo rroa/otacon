@@ -1,23 +1,30 @@
-// Memory.hpp — in-house memory manager.
-//
-// Three allocation strategies are provided, each a classic game-engine pattern:
-//
-//   * TrackedHeap   general malloc-backed allocator that records every live
-//                   block (size + tag + call site) so we can print a leak
-//                   report and per-tag byte totals at shutdown. This is the
-//                   "default" path used by makeTracked<T>/destroyTracked<T>.
-//
-//   * Arena         linear "bump pointer" allocator. Allocation is a pointer
-//                   add; you cannot free individual blocks, only reset the
-//                   whole arena (typically once per frame). O(1), zero
-//                   fragmentation — ideal for transient per-frame scratch.
-//
-//   * PoolAllocator fixed-size free-list. Every block is the same size, so
-//                   alloc/free are O(1) and there is no fragmentation — ideal
-//                   for many short-lived same-type objects (gibs, particles).
-//
-// We deliberately do NOT override global new/delete: third-party code (GLFW)
-// has its own allocations, and keeping ours explicit makes the lesson clearer.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/memory/Memory.hpp - in-house memory manager
+
+Three allocation strategies are provided, each a classic game-engine pattern:
+
+  * TrackedHeap   general malloc-backed allocator that records every live
+                  block (size + tag + call site) so we can print a leak
+                  report and per-tag byte totals at shutdown. This is the
+                  "default" path used by makeTracked<T>/destroyTracked<T>.
+
+  * Arena         linear "bump pointer" allocator. Allocation is a pointer
+                  add; you cannot free individual blocks, only reset the
+                  whole arena (typically once per frame). O(1), zero
+                  fragmentation — ideal for transient per-frame scratch.
+
+  * PoolAllocator fixed-size free-list. Every block is the same size, so
+                  alloc/free are O(1) and there is no fragmentation — ideal
+                  for many short-lived same-type objects (gibs, particles).
+
+We deliberately do NOT override global new/delete: third-party code (GLFW)
+has its own allocations, and keeping ours explicit makes the lesson clearer.
+
+===========================================================================
+*/
 #pragma once
 #include <cstddef>
 #include <cstdint>
@@ -64,6 +71,14 @@ void destroyTracked(T* p) {
 }
 
 // ---- Arena (linear / bump) -------------------------------------------------
+
+/*
+=============================================================================
+
+                                    ARENA
+
+=============================================================================
+*/
 class Arena {
 public:
     Arena() = default;
@@ -82,6 +97,14 @@ private:
 };
 
 // ---- Pool (fixed-size free list) -------------------------------------------
+
+/*
+=============================================================================
+
+                                    POOL
+
+=============================================================================
+*/
 class PoolAllocator {
 public:
     PoolAllocator() = default;

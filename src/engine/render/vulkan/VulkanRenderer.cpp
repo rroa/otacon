@@ -1,17 +1,23 @@
-// VulkanRenderer.cpp — Vulkan backend (Otacon).
-//
-// Consumes the same logical-space triangle lists as the GL backends
-// (submitTriangles / submitTextured) and renders them with a minimal but
-// complete Vulkan 2D pipeline: instance (+ MoltenVK portability) -> device ->
-// swapchain -> render pass -> solid+textured graphics pipelines -> per-frame
-// dynamic vertex buffers -> command buffers + sync.
-//
-// Cross-backend contract notes (see docs/backends):
-//   * Logical 480x320, origin top-left, y DOWN. Vulkan's clip space already has
-//     y pointing down (unlike OpenGL), so the vertex shader maps logical->clip
-//     as `coord/(dim*0.5) - 1` on BOTH axes — no Y flip (the GL shaders flip Y).
-//   * Straight-alpha blending (SRC_ALPHA / ONE_MINUS_SRC_ALPHA), same as GL.
-//   * Geometry is the identical tessellation produced by IRenderer.
+/*
+===========================================================================
+
+OTACON ENGINE
+render/vulkan/VulkanRenderer.cpp - Vulkan backend
+
+The same triangle contract as the GL backends, at Vulkan's level of detail:
+instance, device, swapchain, render pass, pipelines, per-frame command
+buffers and synchronisation, all explicit.
+
+Shaders are compiled to SPIR-V ahead of time and checked in as headers, so
+there is no runtime compiler here and supportsShaders() is false. The
+practical consequence is in IRenderer.hpp: anything built on the effect seam
+must also carry a CPU path, or it would not run on this backend.
+
+The length of this file next to GLLegacyRenderer.cpp is the honest measure of
+what an explicit API asks for in exchange for its control.
+
+===========================================================================
+*/
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "asset/Image.hpp"
@@ -166,7 +172,13 @@ private:
     std::vector<VkTexture> textures_;
 };
 
-// ---------------------------------------------------------------------------
+/*
+==============================
+VulkanRenderer::findMemoryType
+
+---------------------------------------------------------------------------
+==============================
+*/
 uint32_t VulkanRenderer::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags props) {
     VkPhysicalDeviceMemoryProperties mp;
     vkGetPhysicalDeviceMemoryProperties(phys_, &mp);
@@ -176,6 +188,11 @@ uint32_t VulkanRenderer::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags
     return 0;
 }
 
+/*
+============================
+VulkanRenderer::createBuffer
+============================
+*/
 bool VulkanRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props,
                                   VkBuffer& buf, VkDeviceMemory& mem) {
     VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -190,6 +207,11 @@ bool VulkanRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, V
     return true;
 }
 
+/*
+==========================
+VulkanRenderer::makeShader
+==========================
+*/
 VkShaderModule VulkanRenderer::makeShader(const uint32_t* code, std::size_t bytes) {
     VkShaderModuleCreateInfo ci{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     ci.codeSize = bytes; ci.pCode = code;
@@ -198,7 +220,13 @@ VkShaderModule VulkanRenderer::makeShader(const uint32_t* code, std::size_t byte
     return m;
 }
 
-// ---------------------------------------------------------------------------
+/*
+======================
+VulkanRenderer::onInit
+
+---------------------------------------------------------------------------
+======================
+*/
 bool VulkanRenderer::onInit(IWindow* window) {
     window_ = window;
     // Help the loader find the MoltenVK ICD on macOS Homebrew installs.
@@ -224,6 +252,11 @@ bool VulkanRenderer::onInit(IWindow* window) {
     return true;
 }
 
+/*
+==============================
+VulkanRenderer::createInstance
+==============================
+*/
 bool VulkanRenderer::createInstance(IWindow* window) {
     const char** winExts = nullptr; uint32_t winExtCount = 0;
     window->vulkanInstanceExtensions(winExts, winExtCount);
@@ -260,6 +293,11 @@ bool VulkanRenderer::createInstance(IWindow* window) {
     return true;
 }
 
+/*
+=============================
+VulkanRenderer::createSurface
+=============================
+*/
 bool VulkanRenderer::createSurface(IWindow* window) {
     // The forward-declared handle types in Window.hpp are the same as Vulkan's.
     if (!window->createVulkanSurface(instance_, surface_)) {
@@ -269,6 +307,11 @@ bool VulkanRenderer::createSurface(IWindow* window) {
     return true;
 }
 
+/*
+==================================
+VulkanRenderer::pickPhysicalDevice
+==================================
+*/
 bool VulkanRenderer::pickPhysicalDevice() {
     uint32_t n = 0; vkEnumeratePhysicalDevices(instance_, &n, nullptr);
     if (!n) { std::fprintf(stderr, "[vk] no physical devices\n"); return false; }
@@ -292,6 +335,11 @@ bool VulkanRenderer::pickPhysicalDevice() {
     return false;
 }
 
+/*
+============================
+VulkanRenderer::createDevice
+============================
+*/
 bool VulkanRenderer::createDevice() {
     float prio = 1.0f;
     VkDeviceQueueCreateInfo q{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
@@ -316,6 +364,11 @@ bool VulkanRenderer::createDevice() {
     return true;
 }
 
+/*
+===============================
+VulkanRenderer::createSwapchain
+===============================
+*/
 bool VulkanRenderer::createSwapchain() {
     VkSurfaceCapabilitiesKHR caps;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys_, surface_, &caps);
@@ -370,6 +423,11 @@ bool VulkanRenderer::createSwapchain() {
     return true;
 }
 
+/*
+================================
+VulkanRenderer::createRenderPass
+================================
+*/
 bool VulkanRenderer::createRenderPass() {
     VkAttachmentDescription color{};
     color.format = swapFormat_; color.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -392,6 +450,11 @@ bool VulkanRenderer::createRenderPass() {
     return true;
 }
 
+/*
+==================================
+VulkanRenderer::createFramebuffers
+==================================
+*/
 bool VulkanRenderer::createFramebuffers() {
     framebuffers_.resize(swapViews_.size());
     for (std::size_t i = 0; i < swapViews_.size(); ++i) {
@@ -403,6 +466,11 @@ bool VulkanRenderer::createFramebuffers() {
     return true;
 }
 
+/*
+=====================================
+VulkanRenderer::createSyncAndCommands
+=====================================
+*/
 bool VulkanRenderer::createSyncAndCommands() {
     VkCommandPoolCreateInfo pi{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     pi.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; pi.queueFamilyIndex = queueFamily_;
@@ -419,6 +487,11 @@ bool VulkanRenderer::createSyncAndCommands() {
     return true;
 }
 
+/*
+========================================
+VulkanRenderer::createFrameVertexBuffers
+========================================
+*/
 bool VulkanRenderer::createFrameVertexBuffers() {
     for (int i = 0; i < kMaxFramesInFlight; ++i) {
         if (!createBuffer(kVertexBufferBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -430,6 +503,11 @@ bool VulkanRenderer::createFrameVertexBuffers() {
     return true;
 }
 
+/*
+===========================================
+VulkanRenderer::createDescriptorsAndSampler
+===========================================
+*/
 bool VulkanRenderer::createDescriptorsAndSampler() {
     VkDescriptorSetLayoutBinding b{};
     b.binding = 0; b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -453,6 +531,11 @@ bool VulkanRenderer::createDescriptorsAndSampler() {
     return true;
 }
 
+/*
+=============================
+VulkanRenderer::buildPipeline
+=============================
+*/
 VkPipeline VulkanRenderer::buildPipeline(bool textured, bool wireframe) {
     VkShaderModule vs = makeShader(textured ? kTexVert : kSolidVert,
                                    textured ? sizeof(kTexVert) : sizeof(kSolidVert));
@@ -524,6 +607,11 @@ VkPipeline VulkanRenderer::buildPipeline(bool textured, bool wireframe) {
     return pipe;
 }
 
+/*
+===============================
+VulkanRenderer::createPipelines
+===============================
+*/
 bool VulkanRenderer::createPipelines() {
     VkPushConstantRange pc{VK_SHADER_STAGE_VERTEX_BIT, 0, 2 * sizeof(float)};   // viewport vec2
     VkPipelineLayoutCreateInfo li{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -541,7 +629,13 @@ bool VulkanRenderer::createPipelines() {
     return true;
 }
 
-// ---------------------------------------------------------------------------
+/*
+=======================================
+VulkanRenderer::destroySwapchainObjects
+
+---------------------------------------------------------------------------
+=======================================
+*/
 void VulkanRenderer::destroySwapchainObjects() {
     for (auto fb : framebuffers_) if (fb) vkDestroyFramebuffer(device_, fb, nullptr);
     for (auto v : swapViews_) if (v) vkDestroyImageView(device_, v, nullptr);
@@ -550,12 +644,22 @@ void VulkanRenderer::destroySwapchainObjects() {
     if (swapchain_) { vkDestroySwapchainKHR(device_, swapchain_, nullptr); swapchain_ = VK_NULL_HANDLE; }
 }
 
+/*
+=================================
+VulkanRenderer::recreateSwapchain
+=================================
+*/
 bool VulkanRenderer::recreateSwapchain() {
     vkDeviceWaitIdle(device_);
     destroySwapchainObjects();
     return createSwapchain() && createFramebuffers();
 }
 
+/*
+============================
+VulkanRenderer::onBeginFrame
+============================
+*/
 void VulkanRenderer::onBeginFrame(Color clear) {
     clear_ = clear; skipFrame_ = false;
     FrameData& f = frames_[frame_];
@@ -587,6 +691,11 @@ void VulkanRenderer::onBeginFrame(Color clear) {
     vkCmdSetScissor(f.cmd, 0, 1, &sc);
 }
 
+/*
+==========================
+VulkanRenderer::appendDraw
+==========================
+*/
 void VulkanRenderer::appendDraw(const void* data, std::size_t bytes, std::size_t vertexCount,
                                 bool textured, VkDescriptorSet set) {
     if (skipFrame_) return;
@@ -610,11 +719,21 @@ void VulkanRenderer::appendDraw(const void* data, std::size_t bytes, std::size_t
     vkCmdDraw(f.cmd, uint32_t(vertexCount), 1, 0, 0);
 }
 
+/*
+===============================
+VulkanRenderer::submitTriangles
+===============================
+*/
 void VulkanRenderer::submitTriangles(const Vertex* v, std::size_t n) {
     if (!n) return;
     appendDraw(v, n * sizeof(Vertex), n, false, VK_NULL_HANDLE);
 }
 
+/*
+==============================
+VulkanRenderer::submitTextured
+==============================
+*/
 void VulkanRenderer::submitTextured(const TexVertex* v, std::size_t n, TextureHandle tex) {
     if (!n || tex == 0 || tex > textures_.size()) return;
     VkTexture& t = textures_[tex - 1];
@@ -622,6 +741,11 @@ void VulkanRenderer::submitTextured(const TexVertex* v, std::size_t n, TextureHa
     appendDraw(v, n * sizeof(TexVertex), n, true, t.set);
 }
 
+/*
+==========================
+VulkanRenderer::onEndFrame
+==========================
+*/
 void VulkanRenderer::onEndFrame() {
     if (skipFrame_) { frame_ = (frame_ + 1) % kMaxFramesInFlight; return; }
     FrameData& f = frames_[frame_];
@@ -697,7 +821,13 @@ void VulkanRenderer::onEndFrame() {
     frame_ = (frame_ + 1) % kMaxFramesInFlight;
 }
 
-// ---------------------------------------------------------------------------
+/*
+=============================
+VulkanRenderer::createTexture
+
+---------------------------------------------------------------------------
+=============================
+*/
 TextureHandle VulkanRenderer::createTexture(int w, int h, const std::uint8_t* rgba, bool repeat) {
     VkDeviceSize bytes = VkDeviceSize(w) * h * 4;
     VkBuffer staging; VkDeviceMemory stagingMem;
@@ -774,6 +904,11 @@ TextureHandle VulkanRenderer::createTexture(int w, int h, const std::uint8_t* rg
     return TextureHandle(textures_.size());   // handle = index + 1
 }
 
+/*
+==========================
+VulkanRenderer::destroyTex
+==========================
+*/
 void VulkanRenderer::destroyTex(VkTexture& t) {
     if (!t.alive) return;
     if (t.staging) vkDestroyBuffer(device_, t.staging, nullptr);
@@ -784,13 +919,19 @@ void VulkanRenderer::destroyTex(VkTexture& t) {
     t = VkTexture{};
 }
 
-// Re-upload an existing image's pixels. Unlike GL's glTexSubImage2D this is not
-// a one-liner: the pixels must land in a host-visible staging buffer, then be
-// copied into the device-local image by a command buffer, with layout
-// transitions on either side. We keep the staging buffer on the texture and
-// submit a small one-time command, which is the clearest correct version; a
-// production engine would batch these into the frame's own command buffer
-// instead of waiting on the queue.
+/*
+=============================
+VulkanRenderer::updateTexture
+
+Re-upload an existing image's pixels. Unlike GL's glTexSubImage2D this is not
+a one-liner: the pixels must land in a host-visible staging buffer, then be
+copied into the device-local image by a command buffer, with layout
+transitions on either side. We keep the staging buffer on the texture and
+submit a small one-time command, which is the clearest correct version; a
+production engine would batch these into the frame's own command buffer
+instead of waiting on the queue.
+=============================
+*/
 void VulkanRenderer::updateTexture(TextureHandle handle, int w, int h, const std::uint8_t* rgba) {
     if (!handle || handle > textures_.size() || !rgba) return;
     VkTexture& t = textures_[handle - 1];
@@ -846,6 +987,13 @@ void VulkanRenderer::updateTexture(TextureHandle handle, int w, int h, const std
     vkFreeCommandBuffers(device_, cmdPool_, 1, &cmd);
 }
 
+/*
+====================
+createRendererVulkan
+
+The factory RendererFactory.cpp resolves to when VULKAN is compiled in.
+====================
+*/
 IRenderer* createRendererVulkan() { return new VulkanRenderer(); }
 
 } // namespace otacon

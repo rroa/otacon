@@ -1,3 +1,19 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+core/memory/Memory.cpp - in-house memory manager
+
+Three allocators, each a classic engine pattern: a tracked heap that records
+every live block so shutdown can name a leak, a bump arena for per-frame
+scratch, and a fixed-size pool for many short-lived same-type objects.
+
+Global new/delete are deliberately left alone. Third-party code (GLFW, SDL)
+allocates through its own paths anyway, and keeping ours explicit is the
+point - you can see at the call site which strategy a piece of code chose.
+
+===========================================================================
+*/
 #include "core/memory/Memory.hpp"
 #include <cstdlib>
 #include <cstdio>
@@ -5,6 +21,13 @@
 
 namespace otacon {
 
+/*
+==================
+memTagName
+
+Tag names for the leak report.
+==================
+*/
 const char* memTagName(MemTag t) {
     switch (t) {
         case MemTag::General:    return "General";
@@ -35,6 +58,15 @@ static std::mutex  g_mtx;
 static Header*     g_head = nullptr;
 static Stats       g_stats;
 
+/*
+==================
+alloc
+
+Over-allocate by a header, stash the size, tag and call site in front of the
+block, and hand back the aligned payload. The header is what makes free()
+able to account for a block without a lookup table.
+==================
+*/
 void* alloc(std::size_t size, std::size_t align, MemTag tag, const char* site) {
     if (align < alignof(std::max_align_t)) align = alignof(std::max_align_t);
     // Reserve room for the header before the user pointer.
@@ -57,6 +89,14 @@ void* alloc(std::size_t size, std::size_t align, MemTag tag, const char* site) {
     return reinterpret_cast<void*>(h + 1);
 }
 
+/*
+==================
+free
+
+Recover the header that alloc() placed in front of the payload and unlink
+the block from the live list.
+==================
+*/
 void free(void* p) {
     if (!p) return;
     auto* h = reinterpret_cast<Header*>(p) - 1;
@@ -74,8 +114,23 @@ void free(void* p) {
     std::free(h);
 }
 
+/*
+==================
+stats
+
+A snapshot of the live totals, for the perf overlay.
+==================
+*/
 Stats stats() { std::lock_guard<std::mutex> lk(g_mtx); return g_stats; }
 
+/*
+==================
+report
+
+Print live and peak usage, and name anything still allocated. Called at
+shutdown, where a non-empty list is a leak.
+==================
+*/
 void report(const char* phase) {
     std::lock_guard<std::mutex> lk(g_mtx);
     std::printf("[mem] %-10s live=%zuB (%zu blocks) peak=%zuB totalAllocs=%zu\n",
@@ -92,12 +147,35 @@ void report(const char* phase) {
 
 } // namespace mem
 
-// ---- Arena -----------------------------------------------------------------
+/*
+=============================================================================
+
+                                    ARENA
+
+=============================================================================
+*/
+
+/*
+==================
+Arena::init
+
+Take one block from the tracked heap and bump-allocate out of it.
+==================
+*/
 void Arena::init(std::size_t bytes, MemTag tag) {
     base_ = static_cast<std::uint8_t*>(mem::alloc(bytes, alignof(std::max_align_t), tag, "Arena"));
     capacity_ = bytes; offset_ = 0; tag_ = tag;
 }
 Arena::~Arena() { if (base_) mem::free(base_); }
+
+/*
+==================
+Arena::allocate
+
+Align the offset up, then move it. There is no free: an arena is reset
+wholesale, which is exactly why it is O(1) and cannot fragment.
+==================
+*/
 void* Arena::allocate(std::size_t size, std::size_t align) {
     std::size_t cur = reinterpret_cast<std::size_t>(base_ + offset_);
     std::size_t aligned = (cur + (align - 1)) & ~(align - 1);
@@ -107,7 +185,23 @@ void* Arena::allocate(std::size_t size, std::size_t align) {
     return base_ + (offset_ - size);
 }
 
-// ---- Pool ------------------------------------------------------------------
+/*
+=============================================================================
+
+                                    POOL
+
+=============================================================================
+*/
+
+/*
+===================
+PoolAllocator::init
+
+Carve the block into a singly-linked free list, threading each node's next
+pointer through the free block's own storage - a free list costs no extra
+memory because it lives inside what it is tracking.
+===================
+*/
 void PoolAllocator::init(std::size_t blockSize, std::size_t blockCount, std::size_t align, MemTag tag) {
     if (blockSize < sizeof(void*)) blockSize = sizeof(void*);   // must hold a free-list link
     blockSize = (blockSize + (align - 1)) & ~(align - 1);
@@ -122,6 +216,15 @@ void PoolAllocator::init(std::size_t blockSize, std::size_t blockCount, std::siz
     }
 }
 PoolAllocator::~PoolAllocator() { if (base_) mem::free(base_); }
+
+/*
+=======================
+PoolAllocator::allocate
+
+Pop the head of the free list. Returns null when exhausted rather than
+growing: a pool's fixed size is a budget you are meant to notice.
+=======================
+*/
 void* PoolAllocator::allocate() {
     if (!freeList_) return nullptr;
     void* blk = freeList_;
@@ -129,6 +232,14 @@ void* PoolAllocator::allocate() {
     ++live_;
     return blk;
 }
+
+/*
+===================
+PoolAllocator::free
+
+Push the block back onto the free list.
+===================
+*/
 void PoolAllocator::free(void* p) {
     if (!p) return;
     *reinterpret_cast<void**>(p) = freeList_;

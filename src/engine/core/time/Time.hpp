@@ -1,16 +1,23 @@
-// Time.hpp — in-house timing.
-//
-// Clock wraps the OS monotonic clock and hands out seconds. TimeManager turns
-// that wall-clock stream into the per-frame `elapsed` the simulation consumes.
-//
-// Two stepping policies (a teaching contrast):
-//   * Variable  — elapsed = now-last, clamped to maxElapsed. This is exactly
-//                 what the original flixel game does (maxElapsed = 1/20 s) so it
-//                 is the default and keeps the feel identical.
-//   * Fixed     — accumulate real time and emit N steps of a fixed dt. Makes
-//                 the simulation deterministic regardless of frame rate, at the
-//                 cost of a tiny bit of temporal aliasing; offered for the
-//                 lesson on fixed-vs-variable timesteps.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/time/Time.hpp - clock and frame stepping
+
+Clock wraps the OS monotonic clock and hands out seconds. TimeManager turns
+that wall-clock stream into the per-frame `elapsed` the simulation consumes.
+
+Two stepping policies (a teaching contrast):
+  * Variable  — elapsed = now-last, clamped to maxElapsed. This is exactly
+                what the original flixel game does (maxElapsed = 1/20 s) so it
+                is the default and keeps the feel identical.
+  * Fixed     — accumulate real time and emit N steps of a fixed dt. Makes
+                the simulation deterministic regardless of frame rate, at the
+                cost of a tiny bit of temporal aliasing; offered for the
+                lesson on fixed-vs-variable timesteps.
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 

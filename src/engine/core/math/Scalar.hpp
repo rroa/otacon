@@ -1,9 +1,16 @@
-// Scalar.hpp — the pluggable real-number type for the whole engine.
-//
-// Compile with -DOTACON_SCALAR_FIXED to make `Real` a Q16.16 fixed-point
-// number; otherwise `Real` is a 32-bit float (the default, which reproduces the
-// original game's math exactly). All simulation/math code is written against
-// `Real` and the `otacon::s*` helpers below, so it compiles unchanged either way.
+/*
+===========================================================================
+
+OTACON ENGINE
+core/math/Scalar.hpp - the pluggable real-number type
+
+Compile with -DOTACON_SCALAR_FIXED to make `Real` a Q16.16 fixed-point
+number; otherwise `Real` is a 32-bit float (the default, which reproduces the
+original game's math exactly). All simulation/math code is written against
+`Real` and the `otacon::s*` helpers below, so it compiles unchanged either way.
+
+===========================================================================
+*/
 #pragma once
 #include "core/math/Fixed.hpp"
 #include <cmath>

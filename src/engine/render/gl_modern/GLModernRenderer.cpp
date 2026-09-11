@@ -1,9 +1,21 @@
-// GLModernRenderer.cpp — OpenGL core-profile 3.3 backend (shaders + VBO/VAO).
-//
-// Geometry arrives as logical-space triangle lists (solid via submitTriangles,
-// textured via submitTextured); the vertex shaders project logical 480x320
-// (origin top-left, y down) into clip space, so output is identical to the
-// other backends. See docs/backends for the cross-backend contract.
+/*
+===========================================================================
+
+OTACON ENGINE
+render/gl_modern/GLModernRenderer.cpp - OpenGL core-profile 3.3 backend
+
+Geometry arrives as logical-space triangle lists and is projected to clip
+space by the vertex shader, so this backend's output matches the others
+exactly.
+
+This is also the only backend with a reachable programmable stage, so it is
+where the optional fragment-effect seam is actually implemented. An effect
+replaces the fragment shader only; the engine keeps the vertex stage, which
+is what guarantees a user shader cannot move the geometry out from under the
+cross-backend contract.
+
+===========================================================================
+*/
 #include "render/IRenderer.hpp"
 #include "render/gl_modern/GLLoader.hpp"
 #include "platform/Window.hpp"
@@ -258,6 +270,13 @@ private:
     bool   wireframe_ = false;
 };
 
+/*
+======================
+createRendererGLModern
+
+The factory RendererFactory.cpp resolves to when GL_MODERN is compiled in.
+======================
+*/
 IRenderer* createRendererGLModern() { return new GLModernRenderer(); }
 
 } // namespace otacon

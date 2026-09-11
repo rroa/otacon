@@ -1,11 +1,18 @@
-// IAudio.hpp — the engine's audio output seam (sibling of IRenderer / IWindow).
-//
-// The game decodes its sounds in-house (asset/Audio.hpp) and hands the PCM to the
-// device with createSound(); thereafter it just fires one-shots with play(). The
-// concrete device owns an in-house software Mixer and a thin platform output
-// (CoreAudio on macOS; a silent stub elsewhere) — the only OS dependency, exactly
-// like GLFW is for windowing. The factory never returns null: with no working
-// device you get a stub that swallows everything, so the game code is unchanged.
+/*
+===========================================================================
+
+OTACON ENGINE
+audio/IAudio.hpp - the audio output seam
+
+The game decodes its sounds in-house (asset/Audio.hpp) and hands the PCM to the
+device with createSound(); thereafter it just fires one-shots with play(). The
+concrete device owns an in-house software Mixer and a thin platform output
+(CoreAudio on macOS; a silent stub elsewhere) — the only OS dependency, exactly
+like GLFW is for windowing. The factory never returns null: with no working
+device you get a stub that swallows everything, so the game code is unchanged.
+
+===========================================================================
+*/
 #pragma once
 #include <cstdint>
 

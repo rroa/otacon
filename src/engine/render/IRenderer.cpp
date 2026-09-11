@@ -1,3 +1,20 @@
+/*
+===========================================================================
+
+OTACON ENGINE
+render/IRenderer.cpp - the shared half of every backend
+
+This file is why the three graphics backends draw the same picture.
+
+A backend implements only triangle submission and the frame lifecycle.
+Every primitive above that - filled rect, rotated quad, outline, line,
+bitmap text - is tessellated here, once, into the same vertices no matter
+which API is compiled in. A backend therefore cannot disagree about
+geometry; the only thing it can differ on is how those triangles reach the
+screen, and tools/backend-diff.sh exists to check even that.
+
+===========================================================================
+*/
 #include "render/IRenderer.hpp"
 #include "platform/Window.hpp"
 #include "asset/Image.hpp"
@@ -9,11 +26,26 @@
 
 namespace otacon {
 
+/*
+========================
+IRenderer::createTexture
+
+Upload a decoded image.
+========================
+*/
 TextureHandle IRenderer::createTexture(const Image& img, bool repeat) {
     if (!img.valid()) return 0;
     return createTexture(img.width, img.height, img.rgba.data(), repeat);
 }
 
+/*
+====================
+IRenderer::drawImage
+
+A textured quad as two triangles, with an explicit UV window so one atlas
+can serve many sprites without a bind between them.
+====================
+*/
 void IRenderer::drawImage(TextureHandle tex, float dx, float dy, float dw, float dh,
                           float u0, float v0, float u1, float v1, Color tint) {
     if (!tex) return;
@@ -27,6 +59,15 @@ void IRenderer::drawImage(TextureHandle tex, float dx, float dy, float dw, float
     emitTex(texScratch_.data(), texScratch_.size(), tex);
 }
 
+/*
+===========================
+IRenderer::drawImageRotated
+
+The same quad, rotated about its centre. The rotation is applied to the four
+corners here rather than by a matrix, because the seam below carries no
+transform state at all.
+===========================
+*/
 void IRenderer::drawImageRotated(TextureHandle tex, float cx, float cy, float w, float h,
                                  float angleDeg, float u0, float v0, float u1, float v1, Color tint) {
     if (!tex) return;
@@ -43,12 +84,29 @@ void IRenderer::drawImageRotated(TextureHandle tex, float cx, float cy, float w,
     emitTex(texScratch_.data(), texScratch_.size(), tex);
 }
 
+/*
+==================
+IRenderer::init
+
+Record the logical resolution and hand off to the backend.
+==================
+*/
 bool IRenderer::init(IWindow* window, int logicalW, int logicalH) {
     logicalW_ = logicalW; logicalH_ = logicalH;
     scratch_.reserve(4096);
     return onInit(window);
 }
 
+/*
+====================
+IRenderer::letterbox
+
+The largest centred sub-rect of the framebuffer matching the logical aspect.
+Backends clear the whole window and then restrict the viewport to this, so a
+window of any shape shows the logical content undistorted with bars rather
+than stretching it.
+====================
+*/
 void IRenderer::letterbox(int fbw, int fbh, int& x, int& y, int& w, int& h) const {
     if (logicalW_ <= 0 || logicalH_ <= 0 || fbw <= 0 || fbh <= 0) {
         x = 0; y = 0; w = fbw; h = fbh; return;
@@ -60,31 +118,93 @@ void IRenderer::letterbox(int fbw, int fbh, int& x, int& y, int& w, int& h) cons
     x = (fbw - w) / 2;
     y = (fbh - h) / 2;
 }
+
+/*
+=====================
+IRenderer::beginFrame
+
+Reset the per-frame counters and let the backend start its frame.
+=====================
+*/
 void IRenderer::beginFrame(Color clear) {
     prevDrawCalls_ = frameDrawCalls_; prevVerts_ = frameVerts_;   // expose last frame's totals
     frameDrawCalls_ = 0; frameVerts_ = 0;
     onBeginFrame(clear);
 }
+
+/*
+===================
+IRenderer::endFrame
+
+Close the frame. A pending screenshot is written here, by the backend, at a
+point where reading the image is actually valid.
+===================
+*/
 void IRenderer::endFrame() { onEndFrame(); }
 
+/*
+==================
+IRenderer::emit
+
+Submit solid triangles, counting them on the way through so every backend
+reports the same draw statistics without having to remember to.
+==================
+*/
 void IRenderer::emit(const Vertex* v, std::size_t n) {
     ++frameDrawCalls_; frameVerts_ += n; submitTriangles(v, n);
 }
+
+/*
+==================
+IRenderer::emitTex
+
+Submit textured triangles, counted the same way.
+==================
+*/
 void IRenderer::emitTex(const TexVertex* v, std::size_t n, TextureHandle t) {
     ++frameDrawCalls_; frameVerts_ += n; submitTextured(v, n, t);
 }
 
+/*
+===================
+IRenderer::pushQuad
+
+Two triangles for an axis-aligned rect, appended to the scratch buffer.
+===================
+*/
 void IRenderer::pushQuad(float x0, float y0, float x1, float y1, Color c) {
     scratch_.push_back({x0, y0, c}); scratch_.push_back({x1, y0, c}); scratch_.push_back({x1, y1, c});
     scratch_.push_back({x0, y0, c}); scratch_.push_back({x1, y1, c}); scratch_.push_back({x0, y1, c});
 }
 
+/*
+=============================================================================
+
+                                 PRIMITIVES
+
+=============================================================================
+*/
+
+/*
+===================
+IRenderer::fillRect
+
+A solid rect.
+===================
+*/
 void IRenderer::fillRect(float x, float y, float w, float h, Color c) {
     scratch_.clear();
     pushQuad(x, y, x + w, y + h, c);
     emit(scratch_.data(), scratch_.size());
 }
 
+/*
+==========================
+IRenderer::fillRotatedRect
+
+A solid rect rotated about its centre, for particles.
+==========================
+*/
 void IRenderer::fillRotatedRect(float cx, float cy, float w, float h, float angleDeg, Color c) {
     float r = angleDeg * 3.14159265f / 180.f, s = std::sin(r), co = std::cos(r);
     float hw = w * 0.5f, hh = h * 0.5f;
@@ -96,6 +216,14 @@ void IRenderer::fillRotatedRect(float cx, float cy, float w, float h, float angl
     emit(scratch_.data(), scratch_.size());
 }
 
+/*
+==========================
+IRenderer::drawRectOutline
+
+An outline as four filled rects rather than lines, so corners are square and
+the thickness is exact at any size.
+==========================
+*/
 void IRenderer::drawRectOutline(float x, float y, float w, float h, Color c, float t) {
     scratch_.clear();
     pushQuad(x, y, x + w, y + t, c);                 // top
@@ -105,6 +233,15 @@ void IRenderer::drawRectOutline(float x, float y, float w, float h, Color c, flo
     emit(scratch_.data(), scratch_.size());
 }
 
+/*
+===================
+IRenderer::drawLine
+
+A line as a rotated quad. Doing it this way rather than with GL_LINES is what
+makes thickness mean the same thing on every backend - line width support
+is one of the least portable corners of every graphics API.
+===================
+*/
 void IRenderer::drawLine(float x0, float y0, float x1, float y1, Color c, float t) {
     float dx = x1 - x0, dy = y1 - y0;
     float len = std::sqrt(dx * dx + dy * dy);
@@ -116,8 +253,23 @@ void IRenderer::drawLine(float x0, float y0, float x1, float y1, Color c, float 
     emit(scratch_.data(), scratch_.size());
 }
 
-// ---- 3x5 bitmap font -------------------------------------------------------
-// Each glyph is 5 rows of 3 bits (bit2=left .. bit0=right), top row first.
+/*
+=============================================================================
+
+                                 BITMAP TEXT
+
+=============================================================================
+*/
+
+/*
+==================
+glyph
+
+The 3x5 font, as five rows of three bits per character. Small enough to read
+at the logical resolution and to define in one table, which is the whole
+reason the engine carries its own font rather than a glyph atlas.
+==================
+*/
 static std::array<std::uint8_t, 5> glyph(char ch) {
     if (ch >= 'a' && ch <= 'z') ch = char(ch - 'a' + 'A');
     switch (ch) {
@@ -196,10 +348,26 @@ static std::array<std::uint8_t, 5> glyph(char ch) {
     }
 }
 
+/*
+====================
+IRenderer::textWidth
+
+Advance width for a string: 3px glyph plus a 1px gap.
+====================
+*/
 float IRenderer::textWidth(const char* text, float scale) const {
     return float(std::strlen(text)) * 4.f * scale;   // 3px glyph + 1px gap
 }
 
+/*
+===================
+IRenderer::drawText
+
+One quad per lit bit. Deliberately not batched into an atlas - text is a
+debug and HUD facility here, and the stress-test sample measures exactly
+what that costs.
+===================
+*/
 float IRenderer::drawText(const char* text, float x, float y, float scale, Color c) {
     scratch_.clear();
     float cx = x;
@@ -217,6 +385,15 @@ float IRenderer::drawText(const char* text, float x, float y, float scale, Color
     return cx - x;
 }
 
+/*
+=====================
+IRenderer::tryCapture
+
+If a screenshot is pending, read the framebuffer back and write it through
+the in-house PNG encoder. Called by the backend at a valid point in the
+frame, not by the caller who asked.
+=====================
+*/
 void IRenderer::tryCapture() {
     if (!capturePath_) return;
     int w = 0, h = 0;
