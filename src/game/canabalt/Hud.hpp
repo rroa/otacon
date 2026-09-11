@@ -7,6 +7,7 @@
 // the dark bands, the GAME OVER graphic, the epitaph and the retry prompt.
 #pragma once
 #include "asset/Resources.hpp"
+#include "render/Atlas.hpp"
 #include "scene/Node.hpp"
 #include "render/IRenderer.hpp"
 
@@ -16,6 +17,9 @@ namespace canabalt {
 class HudNode final : public otacon::Node {
 public:
     void load(otacon::Resources* res, const char* assetDir);   // images/hud.png
+    // The odometer strip, described once as named regions rather than divided
+    // by hand at every draw site.
+    otacon::Atlas atlas_;
     void destroy(otacon::IRenderer* r);
     void setDistance(int metres) { distance_ = metres < 0 ? 0 : metres; }
 

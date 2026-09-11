@@ -2,6 +2,7 @@
 #include "core/math/Random.hpp"
 #include "IGame.hpp"
 #include "asset/Resources.hpp"
+#include "scene/Animator.hpp"
 #include "asset/SaveData.hpp"
 #include "platform/Window.hpp"
 #include "render/IRenderer.hpp"
@@ -108,9 +109,9 @@ private:
     float horizonOffset_ = 0;
     float jumpVelocity_ = 0;
     float minJumpY_ = 0;
-    float animTimer_ = 0;
     float spawnCooldown_ = 0;
     float restartTimer_ = 0;
+    otacon::Animator runAnim_;   // the stride clock
     int runFrame_ = 0;
     int seed_ = 0;
     bool jumping_ = false;

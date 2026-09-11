@@ -5,6 +5,7 @@
 //   2 Run & Jump   : the real Player auto-runs on flat ground; tap to jump;
 //                    camera follows. Full feel, no hazards.
 //   3 Infinite Run : the ported Sequence.m generator + parallax. The core loop.
+#include "asset/SaveData.hpp"
 #include "canabalt/Mode.hpp"
 #include "canabalt/Player.hpp"
 #include "canabalt/Sequence.hpp"
@@ -581,18 +582,18 @@ private:
     // High score persisted to a small text file beside the assets, so your best
     // run survives between launches (the in-session best lives in bestDistance_).
     std::string scorePath() const { return std::string(assetDir_) + "/highscore.dat"; }
+    // Persistence is the engine's (asset/SaveData.hpp). Over the fopen/fscanf
+    // pair this replaced it buys an atomic write -- a crash mid-save leaves the
+    // previous best intact rather than a truncated file -- and a read that falls
+    // back cleanly instead of trusting whatever fscanf left in the variable.
     void loadHighScore() {
-        if (std::FILE* f = std::fopen(scorePath().c_str(), "r")) {
-            int v = 0;
-            if (std::fscanf(f, "%d", &v) == 1 && v > bestDistance_) bestDistance_ = v;
-            std::fclose(f);
-        }
+        save_.load(scorePath().c_str());
+        const int v = save_.getInt("best", 0);
+        if (v > bestDistance_) bestDistance_ = v;
     }
     void saveHighScore() const {
-        if (std::FILE* f = std::fopen(scorePath().c_str(), "w")) {
-            std::fprintf(f, "%d\n", bestDistance_);
-            std::fclose(f);
-        }
+        // raise() is the engine's "a high score only ever goes up".
+        if (save_.raise("best", bestDistance_)) save_.save();
     }
 
     // Load the world art once (raw PNGs via the in-house decoder).
@@ -746,6 +747,7 @@ private:
     DovesNode dovesNode_;           // pigeons that sit + flush (foreground)
     bool    wasDead_ = false;
     int     bestDistance_ = 0;       // session best (survives death-restarts)
+    mutable otacon::SaveData save_;  // and across sessions, via the engine's store
     Real deadTimer_ = R(0);
 
 public:

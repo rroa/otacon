@@ -25,6 +25,14 @@ void HudNode::load(Resources* res, const char* assetDir) {
     const std::string path = std::string(assetDir) + "/images/hud.png";
     tex_ = res->texture(path);
     res->size(path, texW_, texH_);      // drawn at native size, so it needs both
+    // Describe the strip once: eleven variable-width regions, packed left to
+    // right. Everything after this asks for "g7" rather than doing division.
+    atlas_.init(tex_, texW_, texH_);
+    for (int i = 0; i < 11; ++i) {
+        char name[8];
+        std::snprintf(name, sizeof name, "g%d", i);
+        atlas_.add(name, glyphOffset(i), 0, kGlyphW[i], texH_);
+    }
 }
 
 void HudNode::destroy(IRenderer* r) {
@@ -34,10 +42,14 @@ void HudNode::destroy(IRenderer* r) {
     (void)r;
 }
 
+// The digits and the 'm' suffix are variable-width regions packed into one
+// strip, which is exactly what otacon::Atlas describes. The UV arithmetic this
+// replaced was correct but hand-written in a place that had no business owning
+// it -- and the region names now say what is being drawn.
 void HudNode::glyph(IRenderer& r, int index, float x, float y) const {
-    float u0 = float(glyphOffset(index)) / float(texW_);
-    float u1 = u0 + float(kGlyphW[index]) / float(texW_);
-    r.drawImage(tex_, x, y, float(kGlyphW[index]), float(texH_), u0, 0.f, u1, 1.f);
+    char name[8];
+    std::snprintf(name, sizeof name, "g%d", index);
+    atlas_.draw(r, name, x, y);
 }
 
 void HudNode::render(IRenderer& r, const Camera&) const {

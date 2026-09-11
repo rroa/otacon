@@ -44,7 +44,10 @@ struct State {
 template <typename Id>
 class StateMachine {
 public:
-    void add(Id id, std::function<void()> enter,
+    // Every hook is optional. A state with none is still a state -- "Playing" in
+    // a game that only needs to know it is playing is a perfectly good one, and
+    // requiring a null enter() to say so would be noise.
+    void add(Id id, std::function<void()> enter = {},
              std::function<void(Real, float)> update = {},
              std::function<void()> exit = {}) {
         states_.push_back({id, std::move(enter), std::move(update), std::move(exit)});

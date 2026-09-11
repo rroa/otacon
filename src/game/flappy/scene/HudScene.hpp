@@ -8,6 +8,7 @@
 // Ready / Playing / GameOver state machine on top.
 #pragma once
 #include "asset/SaveData.hpp"
+#include "scene/StateMachine.hpp"
 #include "flappy/scene/ScoreScene.hpp"
 #include "audio/IAudio.hpp"     // SoundId
 #include <string>
@@ -34,6 +35,7 @@ private:
     void flap();                                       // apply the upward kick + wing sound
     void demoControl(otacon::Real dt);                 // self-playing autopilot
     int  medalTier() const;                            // 0 none, 1 bronze .. 4 platinum
+    void wireStates();
     void loadBest();                                   // read persisted high score
     void saveBest() const;                             // write it back
     void drawNumber(otacon::IRenderer& r, int value, float centerX, float top, float scale) const;
@@ -48,13 +50,12 @@ private:
     otacon::TextureHandle messageTex_ = 0, gameoverTex_ = 0;
     otacon::SoundId       wing_ = 0, point_ = 0, hit_ = 0, die_ = 0, swoosh_ = 0;
 
-    Phase        phase_      = Phase::Ready;
+    otacon::StateMachine<Phase> fsm_;   // the run's states, and their entry actions
     // Persistence is the engine's; this only decides WHAT is worth keeping.
     mutable otacon::SaveData save_;
     int          best_       = 0;       // high score, persisted across sessions
     bool         newBest_    = false;   // this run beat the stored best (shows the NEW badge)
-    std::string  savePath_;             // where the high score is persisted
-    float        readyTime_  = 0.f;     // drives the hover bob on the menu
+    std::string  savePath_;             // where the high score is persisted     // drives the hover bob on the menu
     bool         diePlayed_  = false;   // the "die" thud fires once, when the body lands
     bool         demo_       = false;   // autopilot for GIF recording
     float        demoGoTime_ = 0.f;     // time spent on the game-over screen in demo mode

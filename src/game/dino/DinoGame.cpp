@@ -12,6 +12,13 @@ using namespace otacon;
 
 namespace dino {
 
+namespace {
+// Chrome alternates two stride frames at 12fps.
+constexpr int kRunFrames[2] = {0, 1};
+const otacon::Clip kRunClip{"run", kRunFrames, 2, 12.f, true};
+}
+
+
 static const char* kModeLabels[] = { "1 GEOMETRY", "2 MECHANICS", "3 GAMEPLAY", "4 PIXEL ART" };
 
 // --- The real Chrome "offline" sprite atlas (1x = 1233x68). Coordinates from the
@@ -118,9 +125,10 @@ void DinoGame::resetRun() {
     else rng_.setSource(otacon::Random::Source::Entropy);
 
     currentSpeed_ = hasMechanics() ? 6.f : 0.f;
-    distance_ = score_ = horizonOffset_ = animTimer_ = restartTimer_ = 0.f;
+    distance_ = score_ = horizonOffset_ = restartTimer_ = 0.f;
     spawnCooldown_ = 85.f;
     jumping_ = reachedMinHeight_ = speedDrop_ = crashed_ = night_ = false;
+    runAnim_.play(&kRunClip);
     runFrame_ = 0;
     obstacles_.clear();
     clouds_.clear();
@@ -182,11 +190,10 @@ void DinoGame::update(Real dt) {
         return;
     }
 
-    animTimer_ += dtMs;
-    if (animTimer_ >= (jumping_ ? 1000.f / 60.f : 1000.f / 12.f)) {
-        runFrame_ = 1 - runFrame_;
-        animTimer_ = 0.f;
-    }
+    // The stride is a two-frame clip on a clock, which is otacon::Animator's
+    // whole job -- this used to be a hand-rolled accumulate-and-flip.
+    runAnim_.update(otacon::R(dtMs / 1000.f));
+    runFrame_ = runAnim_.frame();
 
     updatePlayer(dtMs);
     updateWorld(dtMs);

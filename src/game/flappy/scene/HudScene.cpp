@@ -61,10 +61,10 @@ void HudScene::saveBest() const {
 void HudScene::enter() {
     ScoreScene::enter();        // resets score, crash flag, skins, spawns a pipe
     pipes_.clear();             // the ready screen has no pipes until you start
-    phase_       = Phase::Ready;
-    readyTime_   = 0.f;
     diePlayed_   = false;
     demoGoTime_  = 0.f;
+    wireStates();
+    fsm_.start(Phase::Ready);
     // best_ deliberately survives across runs (session high score).
 }
 
@@ -76,9 +76,9 @@ void HudScene::flap() {
 void HudScene::handleInput(const otacon::InputFrame& in) {
     if (demo_) return;                                  // autopilot ignores real input
     const bool jump = in.isPressed(otacon::Action::Jump);
-    switch (phase_) {
+    switch (fsm_.state()) {
         case Phase::Ready:
-            if (jump) { phase_ = Phase::Playing; flap(); }     // first tap begins the run
+            if (jump) { fsm_.change(Phase::Playing); flap(); }     // first tap begins the run
             break;
         case Phase::Playing:
             CollisionScene::handleInput(in);            // flap + live gravity tuning
@@ -93,9 +93,9 @@ void HudScene::handleInput(const otacon::InputFrame& in) {
 // A tiny autopilot so a recorded run plays itself: start, aim for the next gap,
 // retry after the game-over screen has shown for a beat.
 void HudScene::demoControl(otacon::Real dt) {
-    switch (phase_) {
+    switch (fsm_.state()) {
         case Phase::Ready:
-            if (readyTime_ > 0.35f) { phase_ = Phase::Playing; flap(); }
+            if (fsm_.timeInState() > 0.35f) { fsm_.change(Phase::Playing); flap(); }
             break;
         case Phase::Playing: {
             const Pipe* next = nullptr;
@@ -117,29 +117,40 @@ void HudScene::demoControl(otacon::Real dt) {
     }
 }
 
+/*
+ * The run's states live in an otacon::StateMachine. What that buys here is where
+ * the game-over work goes: saving a new best and playing the impact used to sit
+ * in update() behind a `!wasCrashed && crashed_` edge-detect, which is an entry
+ * action written by hand. Now it IS an entry action, and it cannot fire twice.
+ */
+void HudScene::wireStates() {
+    if (fsm_.stateCount() > 0) return;                  // wired once per object
+    fsm_.add(Phase::Ready, nullptr, [this](otacon::Real dt, float timeIn) {
+        anim_.update(dt);                               // keep the wings flapping on the menu
+        bird_.y  = cfg::kBirdStartY + std::sin(timeIn * cfg::kBobOmega) * cfg::kBobAmp;
+        bird_.vy = 0.f;
+    });
+    fsm_.add(Phase::Playing);
+    fsm_.add(Phase::GameOver, [this] {
+        newBest_ = score_ > best_;
+        if (newBest_) { best_ = score_; saveBest(); }   // persisted high score
+        demoGoTime_ = 0.f;
+        if (audio_) audio_->play(hit_, 0.8f);
+    });
+}
+
 void HudScene::update(otacon::Real dt) {
     if (demo_) demoControl(dt);                          // may flap / start / retry
 
-    if (phase_ == Phase::Ready) {
-        readyTime_ += otacon::toFloat(dt);
-        animTime_  += otacon::toFloat(dt);              // keep the wings flapping on the menu
-        bird_.y  = cfg::kBirdStartY + std::sin(readyTime_ * cfg::kBobOmega) * cfg::kBobAmp;
-        bird_.vy = 0.f;
-        return;
-    }
+    fsm_.update(dt);                                     // Ready's bob; applies any pending change
+    if (fsm_.is(Phase::Ready)) return;
 
     const int  before     = score_;
     const bool wasCrashed  = crashed_;
     ScoreScene::update(dt);                             // world + collision + scoring (or crashed fall)
 
     if (score_ > before && audio_) audio_->play(point_, 0.7f);
-    if (!wasCrashed && crashed_) {                      // the impact
-        phase_ = Phase::GameOver;
-        newBest_ = score_ > best_;
-        if (newBest_) { best_ = score_; saveBest(); }   // persisted high score
-        demoGoTime_ = 0.f;
-        if (audio_) audio_->play(hit_, 0.8f);
-    }
+    if (!wasCrashed && crashed_) fsm_.change(Phase::GameOver);   // entry action does the rest
     if (crashed_ && !diePlayed_) {                      // the body hitting the ground
         const float floor = cfg::kGroundY - cfg::kBirdSize;
         if (bird_.y >= floor) { if (audio_) audio_->play(die_, 0.7f); diePlayed_ = true; }
@@ -148,7 +159,7 @@ void HudScene::update(otacon::Real dt) {
 
 void HudScene::render(otacon::IRenderer& r) const {
     FlapScene::render(r);    // world + bird (+ collider overlay); skips ScoreScene's bitmap HUD
-    switch (phase_) {
+    switch (fsm_.state()) {
         case Phase::Ready:    drawMessage(r); break;
         case Phase::Playing:  drawNumber(r, score_, cfg::kLogicalW * 0.5f, 36.f, 1.f); break;
         case Phase::GameOver: drawGameOverPanel(r); break;
@@ -263,7 +274,7 @@ void HudScene::drawGameOverPanel(otacon::IRenderer& r) const {
 }
 
 const char* HudScene::status() const {
-    const char* ph = phase_ == Phase::Ready ? "READY" : phase_ == Phase::Playing ? "PLAYING" : "GAME OVER";
+    const char* ph = fsm_.is(Phase::Ready) ? "READY" : fsm_.is(Phase::Playing) ? "PLAYING" : "GAME OVER";
     std::snprintf(status_, sizeof status_, "%s  SCORE %d", ph, score_);
     return status_;
 }

@@ -391,7 +391,35 @@ Before that existed the three games held **23 hand-written `loadPng` calls and 3
 matching `destroyTexture` calls** between them, and Flappy decoded
 `yellowbird-midflap.png` twice into two GPU textures because two builds happened
 to want it. There are now zero of either: no game contains manual texture
-lifetime management.
+lifetime management. The same went for persistence — all three rolled their own
+`fopen`/`fstream` high-score code, and all three now use `SaveData`.
+
+| | canabalt | dino | flappy |
+|---|---|---|---|
+| `Random`, `Resources`, `SaveData` | ✓ | ✓ | ✓ |
+| `Animator` | — | ✓ | ✓ |
+| `Atlas` | ✓ | — | — |
+| `StateMachine` | — | — | ✓ |
+| `Camera`, `Collision`, `Emitter` | ✓ | — | — |
+
+The gaps in that table are deliberate, and worth stating because "every game
+uses every subsystem" would be a worse outcome than the truth:
+
+* **canabalt does not use `Animator`.** Its player animation is a faithful
+  reproduction of `Player.m`, which maps time directly to a frame
+  (`int(t * fps) % 16`) with a speed-varying `fps`. A stepping animator diverges
+  from that the moment the rate changes. Fidelity to the port wins over API
+  usage.
+* **dino does not use `Atlas`.** Its sheet is read *parametrically* — a group of
+  N cacti is one `(N × width)` sub-rect — which named regions cannot express.
+* **No game uses `TileMap`, `PathFinder`, `Verlet`, `SpatialGrid` or
+  `Raycast`,** because none of them is tile-based, has pathfinding agents, soft
+  bodies, or enough colliders for a broad phase to pay for itself. Those are
+  exercised by samples instead.
+* **No game uses `Timers`.** Their clocks (`animTimer_`, `spawnCooldown_`) are
+  simulation state read every frame, not deferred callbacks. `Timers` is for
+  "do this in two seconds"; routing a per-frame accumulator through a scheduler
+  would be worse code.
 
 `Collision` answers "these two overlap, push them apart". `Raycast` answers the
 other question a game asks constantly — "what is the first thing along this line,

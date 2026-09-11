@@ -7,6 +7,14 @@
 
 namespace flappy {
 
+// up -> mid -> down -> mid. A ping-pong is just a frame list that revisits one,
+// which is why Clip stores indices rather than a range.
+namespace {
+constexpr int kWingFrames[4] = {0, 1, 2, 1};
+const otacon::Clip kWingClip{"wing", kWingFrames, 4, 1.f / cfg::kAnimStep, true};
+}
+
+
 FlapScene::~FlapScene() {
     // The engine's cache owns these; nothing to free here.
 }
@@ -25,21 +33,21 @@ void FlapScene::init(otacon::GameContext& ctx) {
 
 void FlapScene::enter() {
     PipeTextureScene::enter();
-    animTime_ = 0.f;
+    anim_.play(&kWingClip);
 }
 
 void FlapScene::update(otacon::Real dt) {
     PipeTextureScene::update(dt);
-    animTime_ += otacon::toFloat(dt);
+    anim_.update(dt);
 }
 
 void FlapScene::drawBird(otacon::IRenderer& r) const {
     if (!birdFrames_ || !birdFrames_[0]) { PipeTextureScene::drawBird(r); return; }   // static fallback
 
     // Wing: ping-pong up→mid→down→mid so the flap reads in both directions.
-    static constexpr int seq[4] = {0, 1, 2, 1};
-    const int step = int(animTime_ / cfg::kAnimStep);
-    const otacon::TextureHandle tex = birdFrames_[seq[step % 4]];
+    // The sequence and its clock are otacon::Clip and otacon::Animator -- a frame
+    // clock is an engine facility, and this used to be a hand-rolled divide.
+    const otacon::TextureHandle tex = birdFrames_[anim_.frame()];
 
     // Tilt: nose up while rising/just-flapped, rotating toward a dive as it falls.
     float angle = cfg::kTiltUp + std::max(0.f, bird_.vy) * cfg::kTiltRate;
