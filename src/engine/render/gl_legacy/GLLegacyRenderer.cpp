@@ -22,6 +22,15 @@ supportsShaders() has to be a capability question rather than an assumption.
 #if defined(__APPLE__)
 #  define GL_SILENCE_DEPRECATION 1
 #  include <OpenGL/gl.h>
+#elif defined(_WIN32)
+// <GL/gl.h> on Windows is not self-contained: it uses WINGDIAPI and APIENTRY
+// without defining them, so <windows.h> has to come first or the header will
+// not compile. NOMINMAX and WIN32_LEAN_AND_MEAN keep it from dragging in the
+// min/max macros and half of the Win32 API along with it.
+#  define WIN32_LEAN_AND_MEAN 1
+#  define NOMINMAX 1
+#  include <windows.h>
+#  include <GL/gl.h>
 #else
 #  include <GL/gl.h>
 #endif

@@ -23,6 +23,9 @@ On the **Vulkan** backend on macOS, launch through `tools/run.sh` instead so the
 loader and MoltenVK ICD are found — `./tools/run.sh samples`, `./tools/run.sh
 canabalt`, and so on. It is harmless on the OpenGL backends.
 
+Per-platform setup — including the Linux packages GLFW needs and the Visual
+Studio path on Windows — is in **[INSTALL.md](INSTALL.md)**.
+
 ## The games
 
 | Exe | What | Logical res |
@@ -177,6 +180,9 @@ has `--demo`, which self-plays the newest build.
 
 ## Documentation
 
+* **[INSTALL.md](INSTALL.md)** — installing and running on macOS, Linux and
+  Windows: prerequisites, per-distro packages, backend selection, and
+  troubleshooting.
 * **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the engine is put
   together and why: the four seams, the renderer contract, the frame, the scene
   model, extension points, and the deliberate non-goals. Start here; it reads in
@@ -197,6 +203,7 @@ with `tools/build-docs.sh` (needs `tectonic`).
 | `src/game/dino/` | The Chromium T-Rex runner, with its own `assets/` |
 | `src/game/flappy/` | Flappy Bird, one `Scene` per build, with its own `assets/` |
 | `src/samples/` | Fifteen engine samples (exe `samples`) |
+| `INSTALL.md` | Per-platform install and run instructions |
 | `docs/` | Architecture notes + the engine manual (source, PDF, HTML) |
 | `tests/smoke.cpp` | Headless engine self-tests (`otacon_smoke`) |
 | `config/build.cfg` | Backend / scalar selection |
