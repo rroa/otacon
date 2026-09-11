@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 using namespace otacon;
@@ -59,12 +60,19 @@ const char* SpriteReveal::name() const {
 
 void DinoGame::init(GameContext& ctx) {
     renderer_ = ctx.renderer;
+    res_      = ctx.resources;
     assetDir_ = ctx.assetDir;
     logicalW_ = ctx.logicalW;
     logicalH_ = ctx.logicalH;
+
+    // Chrome's dino remembers your best across sessions; ours only remembered it
+    // until you quit. SaveData is what closes that gap.
+    const char* home = std::getenv("HOME");
+    save_.load(home ? (std::string(home) + "/.otacon_dino").c_str() : "dino_save.dat");
+    highScore_ = save_.getInt("hi", 0);
     if (renderer_) {
-        Image img = loadPng((std::string(assetDir_) + "/images/sprite.png").c_str());
-        if (img.valid()) sheet_ = renderer_->createTexture(img);
+        // Through the engine's cache, which also owns the teardown ordering.
+        if (res_) sheet_ = res_->texture(std::string(assetDir_) + "/images/sprite.png");
     }
     groundCollider_.fixed = true;
     groundCollider_.solid = true;
@@ -212,7 +220,12 @@ void DinoGame::updateWorld(float dtMs) {
     horizonOffset_ = std::fmod(horizonOffset_ + dx, 24.f);
     distance_ += dx;
     score_ = distance_ / 18.f;
-    if (int(score_) > highScore_) highScore_ = int(score_);   // HI tracks live
+    if (int(score_) > highScore_) {
+        highScore_ = int(score_);
+        // raise() is the engine's "a high score only ever goes up", and writing
+        // on each new best means a crash cannot lose it.
+        if (save_.raise("hi", highScore_)) save_.save();
+    }
     night_ = false;   // day-only: the dark sprites can't be inverted without a post-pass
 
     for (Cloud& cloud : clouds_) {
@@ -320,7 +333,7 @@ void DinoGame::render(IRenderer& r, const DebugRuntime& dbg) {
 }
 
 void DinoGame::shutdown() {
-    if (sheet_ && renderer_) renderer_->destroyTexture(sheet_);
+    sheet_ = 0;   // the engine's Resources cache owns it
     sheet_ = 0;
 }
 

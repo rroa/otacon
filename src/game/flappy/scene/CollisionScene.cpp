@@ -16,9 +16,7 @@ bool aabb(float ax, float ay, float aw, float ah, float bx, float by, float bw, 
 
 CollisionScene::~CollisionScene() {
     if (renderer_) {
-        for (auto t : redBird_)  if (t) renderer_->destroyTexture(t);
-        for (auto t : blueBird_) if (t) renderer_->destroyTexture(t);
-        if (redPipe_) renderer_->destroyTexture(redPipe_);
+        // Cache-owned; nothing to free.
     }
 }
 
@@ -27,16 +25,13 @@ void CollisionScene::init(otacon::GameContext& ctx) {
     renderer_ = ctx.renderer;
     auto loadFrames = [&](otacon::TextureHandle (&dst)[3], const char* stem) {
         const char* suffix[3] = {"upflap", "midflap", "downflap"};
-        for (int i = 0; i < 3; ++i) {
-            otacon::Image img = otacon::loadPng(
-                (std::string(ctx.assetDir) + "/sprites/" + stem + "-" + suffix[i] + ".png").c_str());
-            if (img.valid() && renderer_) dst[i] = renderer_->createTexture(img);
-        }
+        for (int i = 0; i < 3; ++i)
+            if (res_) dst[i] = res_->texture(std::string(ctx.assetDir) + "/sprites/"
+                                             + stem + "-" + suffix[i] + ".png");
     };
     loadFrames(redBird_,  "redbird");
     loadFrames(blueBird_, "bluebird");
-    otacon::Image rp = otacon::loadPng((std::string(ctx.assetDir) + "/sprites/pipe-red.png").c_str());
-    if (rp.valid() && renderer_) redPipe_ = renderer_->createTexture(rp);
+    if (res_) redPipe_ = res_->texture(std::string(ctx.assetDir) + "/sprites/pipe-red.png");
 }
 
 void CollisionScene::enter() {

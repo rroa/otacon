@@ -5,6 +5,7 @@
 // Scene between the buildings and the foreground particles, points it at the
 // active mode's player, and toggles its visibility with the F6 reveal.
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Node.hpp"
 #include "render/IRenderer.hpp"
 
@@ -14,7 +15,7 @@ class Player;
 
 class PlayerSpriteNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);   // player2.png
+    void load(otacon::Resources* res, const char* assetDir);   // player2.png
     void destroy(otacon::IRenderer* r);
     bool hasTexture() const { return tex_ != 0; }
 

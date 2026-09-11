@@ -5,6 +5,7 @@
 // is the thin ledge the player runs across, and a post holding it up from the
 // roof. The sign height comes from the generator (Piece.aux).
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Camera.hpp"
 #include "render/IRenderer.hpp"
 #include <cstdint>
@@ -13,7 +14,7 @@ namespace canabalt {
 
 class Billboard {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
     bool loaded() const { return topMid_ != 0; }
     void draw(otacon::IRenderer& r, const otacon::Camera& cam,

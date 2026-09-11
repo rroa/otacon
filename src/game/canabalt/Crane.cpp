@@ -1,4 +1,5 @@
 #include "canabalt/Crane.hpp"
+#include "asset/Resources.hpp"
 #include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <string>
@@ -12,11 +13,10 @@ constexpr float kTile = 16.f;
 constexpr float kAntH = 160.f;        // antenna offset above the beam
 }
 
-void Crane::load(IRenderer* r, const char* assetDir) {
-    if (!r || beam_) return;
+void Crane::load(Resources* res, const char* assetDir) {
+    if (!res || beam_) return;
     auto tex = [&](const char* file, bool repeat) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir) + "/images/raw/" + file).c_str());
-        return im.valid() ? r->createTexture(im, repeat) : 0;
+        return res ? res->texture(std::string(assetDir) + "/images/raw/" + file, repeat) : 0;
     };
     beam_          = tex("crane1.png", true);          // 96x32 girder, tiled across
     post_          = tex("crane2-filled.png", true);   // 32x32 tower, tiled down
@@ -27,9 +27,10 @@ void Crane::load(IRenderer* r, const char* assetDir) {
 }
 
 void Crane::destroy(IRenderer* r) {
-    if (!r) return;
-    for (TextureHandle t : {beam_, post_, counterweight_, cabin_, pulley_, antenna_})
-        if (t) r->destroyTexture(t);
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void Crane::draw(IRenderer& r, const Camera& cam, float wx, float wy, float ww, float wh,

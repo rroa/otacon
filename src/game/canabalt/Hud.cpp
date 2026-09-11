@@ -1,4 +1,5 @@
 #include "canabalt/Hud.hpp"
+#include "asset/Resources.hpp"
 #include "asset/Image.hpp"
 #include <cstdio>
 #include <cstring>
@@ -19,15 +20,18 @@ int glyphOffset(int i) { int o = 0; for (int k = 0; k < i; ++k) o += kGlyphW[k];
 
 // === HudNode =================================================================
 
-void HudNode::load(IRenderer* r, const char* assetDir) {
-    if (tex_ || !r) return;
-    Image img = loadPng((std::string(assetDir) + "/images/hud.png").c_str());
-    if (img.valid()) { texW_ = img.width; texH_ = img.height; tex_ = r->createTexture(img); }
+void HudNode::load(Resources* res, const char* assetDir) {
+    if (tex_ || !res) return;
+    const std::string path = std::string(assetDir) + "/images/hud.png";
+    tex_ = res->texture(path);
+    res->size(path, texW_, texH_);      // drawn at native size, so it needs both
 }
 
 void HudNode::destroy(IRenderer* r) {
-    if (tex_ && r) r->destroyTexture(tex_);
-    tex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void HudNode::glyph(IRenderer& r, int index, float x, float y) const {
@@ -52,19 +56,19 @@ void HudNode::render(IRenderer& r, const Camera&) const {
 
 // === TitleNode ===============================================================
 
-void TitleNode::load(IRenderer* r, const char* assetDir) {
-    if (bgTex_ || !r) return;
-    Image bg = loadPng((std::string(assetDir) + "/images/raw/title.png").c_str());
-    if (bg.valid()) bgTex_ = r->createTexture(bg);
-    Image logo = loadPng((std::string(assetDir) + "/images/raw/title2.png").c_str());
-    if (logo.valid()) { logoW_ = logo.width; logoH_ = logo.height; logoTex_ = r->createTexture(logo); }
+void TitleNode::load(Resources* res, const char* assetDir) {
+    if (bgTex_ || !res) return;
+    const std::string raw = std::string(assetDir) + "/images/raw/";
+    bgTex_ = res->texture(raw + "title.png");
+    logoTex_ = res->texture(raw + "title2.png");
+    res->size(raw + "title2.png", logoW_, logoH_);
 }
 
 void TitleNode::destroy(IRenderer* r) {
-    if (!r) return;
-    if (bgTex_)   r->destroyTexture(bgTex_);
-    if (logoTex_) r->destroyTexture(logoTex_);
-    bgTex_ = logoTex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void TitleNode::render(IRenderer& r, const Camera&) const {
@@ -79,12 +83,13 @@ void TitleNode::render(IRenderer& r, const Camera&) const {
 
 // === GameOverNode ============================================================
 
-void GameOverNode::load(IRenderer* r, const char* assetDir) {
-    if (goTex_ || !r) return;
+void GameOverNode::load(Resources* res, const char* assetDir) {
+    if (goTex_ || !res) return;
     auto load = [&](const char* f, int& w, int& h) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir) + "/images/raw/" + f).c_str());
-        if (!im.valid()) return 0;
-        w = im.width; h = im.height; return r->createTexture(im);
+        const std::string path = std::string(assetDir) + "/images/raw/" + f;
+        const TextureHandle t = res->texture(path);
+        res->size(path, w, h);
+        return t;
     };
     int onW = 0, onH = 0;
     goTex_     = load("gameover.png", goW_, goH_);
@@ -94,12 +99,10 @@ void GameOverNode::load(IRenderer* r, const char* assetDir) {
 }
 
 void GameOverNode::destroy(IRenderer* r) {
-    if (!r) return;
-    if (goTex_)     r->destroyTexture(goTex_);
-    if (exitTex_)   r->destroyTexture(exitTex_);
-    if (exitOnTex_) r->destroyTexture(exitOnTex_);
-    if (recordTex_) r->destroyTexture(recordTex_);
-    goTex_ = exitTex_ = exitOnTex_ = recordTex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void GameOverNode::show(int distance, const char* cause, bool newRecord) {

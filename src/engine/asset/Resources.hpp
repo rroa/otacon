@@ -48,14 +48,37 @@ public:
     */
     TextureHandle texture(const std::string& path, bool repeat = false) {
         const auto it = textures_.find(path);
-        if (it != textures_.end()) return it->second;
-        TextureHandle h = 0;
+        if (it != textures_.end()) return it->second.handle;
+        Entry e;
         if (renderer_) {
             const Image img = loadPng(path.c_str());
-            if (img.valid()) h = renderer_->createTexture(img, repeat);
+            if (img.valid()) {
+                e.handle = renderer_->createTexture(img, repeat);
+                e.w = img.width; e.h = img.height;
+            }
         }
-        textures_[path] = h;
-        return h;
+        textures_[path] = e;
+        return e.handle;
+    }
+
+    /*
+    ==================
+    size
+
+    The pixel dimensions of a cached texture. Anything drawn at its native size
+    needs these, and without them a caller has to decode the file a second time
+    purely to read its header -- which is exactly the duplicate work this class
+    exists to remove.
+
+    Returns false when the key is unknown or the load failed, leaving the
+    out-params untouched.
+    ==================
+    */
+    bool size(const std::string& path, int& w, int& h) const {
+        const auto it = textures_.find(path);
+        if (it == textures_.end() || !it->second.handle) return false;
+        w = it->second.w; h = it->second.h;
+        return true;
     }
 
     SoundId sound(const std::string& path) {
@@ -74,11 +97,14 @@ public:
     // name of their choosing -- procedural art wants caching too.
     TextureHandle adopt(const std::string& key, const Image& img, bool repeat = false) {
         const auto it = textures_.find(key);
-        if (it != textures_.end()) return it->second;
-        TextureHandle h = 0;
-        if (renderer_ && img.valid()) h = renderer_->createTexture(img, repeat);
-        textures_[key] = h;
-        return h;
+        if (it != textures_.end()) return it->second.handle;
+        Entry e;
+        if (renderer_ && img.valid()) {
+            e.handle = renderer_->createTexture(img, repeat);
+            e.w = img.width; e.h = img.height;
+        }
+        textures_[key] = e;
+        return e.handle;
     }
 
     bool has(const std::string& path) const { return textures_.count(path) != 0; }
@@ -97,7 +123,7 @@ public:
     void shutdown() {
         if (renderer_)
             for (auto& kv : textures_)
-                if (kv.second) renderer_->destroyTexture(kv.second);
+                if (kv.second.handle) renderer_->destroyTexture(kv.second.handle);
         textures_.clear();
         sounds_.clear();
     }
@@ -105,7 +131,10 @@ public:
 private:
     IRenderer* renderer_ = nullptr;
     IAudio*    audio_ = nullptr;
-    std::unordered_map<std::string, TextureHandle> textures_;
+    // Dimensions travel with the handle: they are known at decode time and
+    // re-reading the file to recover them would defeat the cache.
+    struct Entry { TextureHandle handle = 0; int w = 0, h = 0; };
+    std::unordered_map<std::string, Entry> textures_;
     std::unordered_map<std::string, SoundId>       sounds_;
 };
 

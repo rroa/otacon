@@ -11,6 +11,7 @@ time manager and debug runtime; runs the main loop and drives an IGame.
 #pragma once
 #include "platform/Window.hpp"
 #include "core/time/Time.hpp"
+#include "asset/Resources.hpp"
 #include "core/debug/Debug.hpp"
 
 namespace otacon {
@@ -46,6 +47,7 @@ private:
     IGame*       game_     = nullptr;
     TimeManager  time_{TimeManager::Policy::Variable};
     DebugRuntime debug_;
+    Resources    resources_;
     int          logicalW_ = 480, logicalH_ = 320;
     bool         running_  = false;
     bool         wantShot_ = false;

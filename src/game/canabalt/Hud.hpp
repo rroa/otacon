@@ -6,6 +6,7 @@
 // each its own width, packed left to right). GameOverNode is the death overlay —
 // the dark bands, the GAME OVER graphic, the epitaph and the retry prompt.
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Node.hpp"
 #include "render/IRenderer.hpp"
 
@@ -14,7 +15,7 @@ namespace canabalt {
 // Top-right metres-run counter, drawn from the hud.png glyph strip.
 class HudNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);   // images/hud.png
+    void load(otacon::Resources* res, const char* assetDir);   // images/hud.png
     void destroy(otacon::IRenderer* r);
     void setDistance(int metres) { distance_ = metres < 0 ? 0 : metres; }
 
@@ -32,7 +33,7 @@ private:
 // a "press jump" prompt. Shown until the first run begins.
 class TitleNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);   // title.png + title2.png
+    void load(otacon::Resources* res, const char* assetDir);   // title.png + title2.png
     void destroy(otacon::IRenderer* r);
     void render(otacon::IRenderer& r, const otacon::Camera& cam) const override;
 
@@ -44,7 +45,7 @@ private:
 // Full-screen death overlay: dark bands + GAME OVER graphic + epitaph + prompt.
 class GameOverNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);   // gameover.png + exit
+    void load(otacon::Resources* res, const char* assetDir);   // gameover.png + exit
     void destroy(otacon::IRenderer* r);
 
     void show(int distance, const char* cause, bool newRecord);   // arm on death

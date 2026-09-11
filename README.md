@@ -129,7 +129,7 @@ file changes). Any key can also be overridden per-configure, e.g.
 |-----|--------|---------|
 | `GRAPHICS_BACKEND` | `GL_MODERN` (default) / `GL_LEGACY` / `VULKAN` | Renderer pipeline |
 | `WINDOW_BACKEND` | `GLFW` (default) / `SDL2` | Window / input / context library |
-| `SCALAR_TYPE` | `FLOAT` (default) / `FIXED` | Simulation number type (Q16.16) |
+| `SCALAR_TYPE` | `FLOAT` (default) / `FIXED` | Simulation number type. Float is the real default; Q16.16 is a didactic option for when you want bit-identical results, not a design commitment |
 | `MEMORY_TRACKING` | `ON` / `OFF` | Allocation tracking + leak report |
 | `DEBUG_RUNTIME` | `ON` / `OFF` | Runtime debug views |
 

@@ -15,27 +15,29 @@ static const char* kModeLabels[] = { "1 BOX", "2 GRAVITY", "3 RUN+JUMP", "4 INFI
 
 void CanabaltGame::init(GameContext& ctx) {
     logicalW_ = ctx.logicalW; logicalH_ = ctx.logicalH;
-    renderer_ = ctx.renderer; assetDir_ = ctx.assetDir; audio_ = ctx.audio;
+    renderer_ = ctx.renderer;
+    resources_ = ctx.resources; assetDir_ = ctx.assetDir; audio_ = ctx.audio;
     scene_.camera.setViewport(ctx.logicalW, ctx.logicalH);
     // The player sprite is a scene node that owns its own sheet (F6 sprite path).
-    playerSprite_.load(renderer_, assetDir_);
+    playerSprite_.load(resources_, assetDir_);
     // Game-flow chrome: the PAUSED graphic and a software cursor.
     auto loadTex = [&](const char* f, int& w, int& h) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir_) + "/images/raw/" + f).c_str());
-        if (!im.valid() || !renderer_) return 0;
-        w = im.width; h = im.height; return renderer_->createTexture(im);
+        if (!resources_) return 0;
+        const std::string path = std::string(assetDir_) + "/images/raw/" + f;
+        const TextureHandle t = resources_->texture(path);
+        resources_->size(path, w, h);
+        return t;
     };
     pausedTex_ = loadTex("paused.png", pausedW_, pausedH_);
     cursorTex_ = loadTex("cursor.png", cursorW_, cursorH_);
-    setMode(0);
+    setMode(startMode_);
 }
 
 void CanabaltGame::shutdown() {
     scene_.clearNodes();
     playerSprite_.destroy(renderer_);
     if (renderer_) {
-        if (pausedTex_) renderer_->destroyTexture(pausedTex_);
-        if (cursorTex_) renderer_->destroyTexture(cursorTex_);
+        // Cache-owned; released once by the engine after shutdown.
     }
     pausedTex_ = cursorTex_ = 0;
     mode_.reset();
@@ -52,7 +54,7 @@ void CanabaltGame::setMode(int index) {
     grabbed_ = nullptr;
     applyQuake(false);                          // config in place before the mode triggers it
     scene_.clearNodes();                        // drop the old mode's nodes before it dies
-    ModeServices services{rng_, renderer_, assetDir_, audio_, &particlesEnabled_, &reveal_};
+    ModeServices services{rng_, renderer_, resources_, assetDir_, audio_, &particlesEnabled_, &reveal_};
     mode_.reset(makeMode(modeIndex_, services));
     mode_->enter(scene_);                        // builds entities + configures nodes
 

@@ -5,6 +5,7 @@
 // now drawn with the real sprite instead of a yellow square. The world around it
 // is still empty — only the player is textured here.
 #pragma once
+#include "asset/Resources.hpp"
 #include "flappy/scene/GravityScene.hpp"
 
 namespace otacon { struct GameContext; }
@@ -24,8 +25,14 @@ protected:
     // here it's a single static frame centered on the bird's box.
     virtual void drawBird(otacon::IRenderer& r) const;
 
+protected:
+    otacon::IRenderer*    renderer_ = nullptr;
+    // The engine's cache owns the textures; the scenes only hold handles, so
+    // there is nothing to free and no teardown ordering to get wrong. Protected
+    // because every later build derives from this one and loads through it.
+    otacon::Resources*    res_ = nullptr;
+
 private:
-    otacon::IRenderer*    renderer_ = nullptr;   // kept to free the texture on teardown
     otacon::TextureHandle tex_ = 0;
 };
 

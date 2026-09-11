@@ -7,6 +7,7 @@
 // are entirely inherited from ScoreScene; this build adds presentation + a small
 // Ready / Playing / GameOver state machine on top.
 #pragma once
+#include "asset/SaveData.hpp"
 #include "flappy/scene/ScoreScene.hpp"
 #include "audio/IAudio.hpp"     // SoundId
 #include <string>
@@ -48,6 +49,8 @@ private:
     otacon::SoundId       wing_ = 0, point_ = 0, hit_ = 0, die_ = 0, swoosh_ = 0;
 
     Phase        phase_      = Phase::Ready;
+    // Persistence is the engine's; this only decides WHAT is worth keeping.
+    mutable otacon::SaveData save_;
     int          best_       = 0;       // high score, persisted across sessions
     bool         newBest_    = false;   // this run beat the stored best (shows the NEW badge)
     std::string  savePath_;             // where the high score is persisted

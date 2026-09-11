@@ -8,7 +8,7 @@
 namespace flappy {
 
 FlapScene::~FlapScene() {
-    if (renderer_) for (auto t : yellowBird_) if (t) renderer_->destroyTexture(t);
+    // The engine's cache owns these; nothing to free here.
 }
 
 void FlapScene::init(otacon::GameContext& ctx) {
@@ -16,8 +16,9 @@ void FlapScene::init(otacon::GameContext& ctx) {
     renderer_ = ctx.renderer;
     const char* names[3] = {"yellowbird-upflap", "yellowbird-midflap", "yellowbird-downflap"};
     for (int i = 0; i < 3; ++i) {
-        otacon::Image img = otacon::loadPng((std::string(ctx.assetDir) + "/sprites/" + names[i] + ".png").c_str());
-        if (img.valid() && renderer_) yellowBird_[i] = renderer_->createTexture(img);
+        // midflap is also wanted by TextureScene; the cache hands back the same
+        // handle rather than decoding and uploading it a second time.
+        if (res_) yellowBird_[i] = res_->texture(std::string(ctx.assetDir) + "/sprites/" + names[i] + ".png");
     }
     birdFrames_ = yellowBird_;      // active set defaults to yellow
 }

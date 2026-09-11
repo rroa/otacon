@@ -249,6 +249,14 @@ The engine offers a small scene graph so rendering lives in one place ---
 
 \chapter{Core subsystems}
 \section{Math and the pluggable scalar}
+\textbf{Float is the default and fixed-point is a didactic option}, not a design
+commitment the engine is built around. Choose \code{FIXED} when you want what it
+actually offers --- bit-identical results across machines, for lockstep netcode
+or an exactly reproducible replay --- and remember that Q16.16 tops out at
+$\pm32767.99998$, which an endless runner's world X exceeds. Building the test
+suite both ways does make a useful second opinion on floating-point assumptions,
+but that is a bonus rather than the reason the option exists.
+
 \code{Real} is the engine number type. With \code{SCALAR\_TYPE=FLOAT} it is an
 IEEE float (and reproduces the reference game bit-for-bit). With \code{FIXED} it
 becomes \code{Fixed}, an in-house \emph{Q16.16} fixed-point type --- a
@@ -270,6 +278,16 @@ are intentionally \emph{not} overridden, so third-party allocations stay separat
 to \code{maxElapsed = 1/20\,s}); the \emph{fixed} policy banks real time and emits
 whole fixed steps for frame-rate-independent determinism. It also drives the time
 scale used by the slow-mo / fast-forward debug control.
+
+\section{Resources and persistence}
+\code{Resources} is an engine-owned, load-once cache for textures and sounds,
+handed to every game through \code{GameContext}. A single owner is the point: two
+systems asking for the same file get the same handle, and everything is released
+once, after the game shuts down and while the renderer is still alive. Before it
+existed the three games carried 23 hand-written \code{loadPng} calls and 34
+matching \code{destroyTexture} calls between them; there are now none.
+\code{SaveData} is the matching store for small persistent state --- a high
+score, a settings flag --- writing atomically and reading totally.
 
 \section{Simulation, AI and procedural helpers}
 Beyond \code{Entity} and the AABB solver, the scene layer carries the subsystems

@@ -16,9 +16,13 @@ int main(int argc, char** argv) {
     // --capture <path> [--frames N]: render N deterministic frames, save a PNG, quit.
     const char* capturePath = nullptr;
     int captureFrames = 60;
+    int startMode = 0;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--capture") == 0 && i + 1 < argc) capturePath = argv[++i];
         else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) captureFrames = std::atoi(argv[++i]);
+        // --mode N starts in demo mode N (1-4). Without it a capture can only
+        // ever photograph mode 1, which is the one mode that draws no art.
+        else if (std::strcmp(argv[i], "--mode") == 0 && i + 1 < argc) startMode = std::atoi(argv[++i]) - 1;
     }
 
     otacon::WindowConfig cfg;
@@ -34,6 +38,7 @@ int main(int argc, char** argv) {
 #endif
 
     canabalt::CanabaltGame game;
+    game.selectAtStartup(startMode);
     otacon::App app;
     if (!app.init(cfg, &game, OTACON_ASSET_DIR)) {
         std::fprintf(stderr, "Failed to initialize Otacon app.\n");

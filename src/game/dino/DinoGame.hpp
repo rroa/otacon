@@ -1,6 +1,8 @@
 #pragma once
 #include "core/math/Random.hpp"
 #include "IGame.hpp"
+#include "asset/Resources.hpp"
+#include "asset/SaveData.hpp"
 #include "platform/Window.hpp"
 #include "render/IRenderer.hpp"
 #include "scene/Entity.hpp"
@@ -83,7 +85,9 @@ private:
 
     otacon::IRenderer* renderer_ = nullptr;
     const char* assetDir_ = "";
+    otacon::Resources* res_ = nullptr;    // the engine's cache; owns the sheet
     otacon::TextureHandle sheet_ = 0;     // the Chrome offline sprite atlas (1x)
+    otacon::SaveData save_;               // HI survives the process now
     int logicalW_ = 480;
     int logicalH_ = 320;
     DinoMode mode_ = DinoMode::Geometry;

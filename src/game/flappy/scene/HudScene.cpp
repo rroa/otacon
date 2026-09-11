@@ -15,9 +15,7 @@ namespace flappy {
 
 HudScene::~HudScene() {
     if (renderer_) {
-        for (auto t : digits_) if (t) renderer_->destroyTexture(t);
-        if (messageTex_)  renderer_->destroyTexture(messageTex_);
-        if (gameoverTex_) renderer_->destroyTexture(gameoverTex_);
+        // Cache-owned; nothing to free.
     }
 }
 
@@ -28,8 +26,7 @@ void HudScene::init(otacon::GameContext& ctx) {
 
     const std::string spr = std::string(ctx.assetDir) + "/sprites/";
     auto tex = [&](const std::string& f) -> otacon::TextureHandle {
-        otacon::Image img = otacon::loadPng((spr + f).c_str());
-        return (img.valid() && renderer_) ? renderer_->createTexture(img) : 0;
+        return res_ ? res_->texture(spr + f) : 0;
     };
     for (int d = 0; d < 10; ++d) digits_[d] = tex(std::to_string(d) + ".png");
     messageTex_  = tex("message.png");
@@ -47,15 +44,18 @@ void HudScene::init(otacon::GameContext& ctx) {
     loadBest();
 }
 
+// The engine owns persistence (asset/SaveData.hpp). What that buys over the
+// fstream this replaced: the write is atomic, so a crash mid-save leaves the
+// previous best intact instead of a truncated file, and a malformed value reads
+// back as the default rather than whatever operator>> left in the variable.
 void HudScene::loadBest() {
-    std::ifstream f(savePath_);
-    int v = 0;
-    if (f && (f >> v) && v >= 0) best_ = v;
+    save_.load(savePath_.c_str());
+    best_ = save_.getInt("best", 0);
 }
 
 void HudScene::saveBest() const {
-    std::ofstream f(savePath_, std::ios::trunc);
-    if (f) f << best_ << '\n';
+    save_.set("best", best_);
+    save_.save();
 }
 
 void HudScene::enter() {

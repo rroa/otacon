@@ -11,15 +11,14 @@ namespace flappy {
 WorldScene::~WorldScene() {
     if (renderer_)
         for (auto t : {dayTex_, nightTex_, baseTex_})
-            if (t) renderer_->destroyTexture(t);
+            (void)t;   // cache-owned; nothing to free
 }
 
 void WorldScene::init(otacon::GameContext& ctx) {
     FlapScene::init(ctx);       // bird frames + textured pipes
     renderer_ = ctx.renderer;
     auto load = [&](const char* file) -> otacon::TextureHandle {
-        otacon::Image img = otacon::loadPng((std::string(ctx.assetDir) + "/sprites/" + file).c_str());
-        return (img.valid() && renderer_) ? renderer_->createTexture(img) : 0;
+        return res_ ? res_->texture(std::string(ctx.assetDir) + "/sprites/" + file) : 0;
     };
     dayTex_   = load("background-day.png");
     nightTex_ = load("background-night.png");

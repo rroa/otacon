@@ -1,4 +1,5 @@
 #include "canabalt/Building.hpp"
+#include "asset/Resources.hpp"
 #include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <cstdio>
@@ -14,11 +15,11 @@ constexpr float kWindowW = 64.f;  // window tile width
 constexpr float kEscapeH = 32.f;  // fire-escape tile height (16x32, tiled down)
 }
 
-void Building::load(IRenderer* r, const char* assetDir) {
-    if (!r || wallMid_[0]) return;
+void Building::load(Resources* res, const char* assetDir) {
+    if (!res || wallMid_[0]) return;
     auto tex = [&](const char* file) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir) + "/images/raw/" + file).c_str());
-        return im.valid() ? r->createTexture(im, /*repeat=*/true) : 0;   // repeat to tile
+        // repeat=true so a wall tiles across a building in one draw
+        return res ? res->texture(std::string(assetDir) + "/images/raw/" + file, true) : 0;
     };
     char name[48];
     for (int i = 0; i < 4; ++i) {
@@ -44,15 +45,10 @@ void Building::load(IRenderer* r, const char* assetDir) {
 }
 
 void Building::destroy(IRenderer* r) {
-    if (!r) return;
-    for (int i = 0; i < 4; ++i)
-        for (TextureHandle t : {wallL_[i], wallR_[i], wallMid_[i], window_[i]}) if (t) r->destroyTexture(t);
-    for (int i = 0; i < kRoofStyles; ++i)
-        for (TextureHandle t : {roofL_[i], roofM_[i], roofR_[i]}) if (t) r->destroyTexture(t);
-    for (int i = 0; i < kFloorStyles; ++i)
-        for (TextureHandle t : {floorL_[i], floorM_[i], floorR_[i]}) if (t) r->destroyTexture(t);
-    for (TextureHandle t : {escape_, hall1_, hall2_, doors_})
-        if (t) r->destroyTexture(t);
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 // A hallway: building above the opening + dark interior + floor strips. The

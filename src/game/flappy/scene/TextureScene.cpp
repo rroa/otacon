@@ -6,16 +6,17 @@
 
 namespace flappy {
 
-TextureScene::~TextureScene() {
-    if (tex_ && renderer_) renderer_->destroyTexture(tex_);
-}
+// Textures come from the engine's cache now, so nothing here owns one and the
+// destructor has nothing to free. That is the point: this scene and FlapScene
+// both want yellowbird-midflap, and loading it twice meant two decodes and two
+// GPU textures for one file.
+TextureScene::~TextureScene() = default;
 
 void TextureScene::init(otacon::GameContext& ctx) {
     renderer_ = ctx.renderer;
+    res_ = ctx.resources;
     // A single static frame is enough here; flap animation arrives in Build 5.
-    const std::string path = std::string(ctx.assetDir) + "/sprites/yellowbird-midflap.png";
-    otacon::Image img = otacon::loadPng(path.c_str());
-    if (img.valid() && renderer_) tex_ = renderer_->createTexture(img);
+    if (res_) tex_ = res_->texture(std::string(ctx.assetDir) + "/sprites/yellowbird-midflap.png");
 }
 
 void TextureScene::render(otacon::IRenderer& r) const { drawBird(r); }

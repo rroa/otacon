@@ -180,10 +180,21 @@ using Real = float;                 // matches the original game exactly
 ```
 
 All simulation code is written against `Real` and the `s*` helpers (`sabs`,
-`ssqrt`, `sfloor`), so it compiles unchanged either way. The fixed-point build
-is a teaching option rather than the default, and the reason is instructive:
-Q16.16 tops out at ±32767.99998, and an endless runner's world X grows without
-bound. The limitation is the lesson.
+`ssqrt`, `sfloor`), so it compiles unchanged either way.
+
+**Float is the real default, and fixed-point is a didactic option — not a design
+commitment the rest of the engine is built around.** Reach for `FIXED` when you
+actually want what it offers: bit-identical results across machines, for a
+lockstep netcode experiment or a replay that must reproduce exactly, or to see
+what an integer-only target costs. Q16.16 tops out at ±32767.99998, and an
+endless runner's world X grows without bound, so the shipping configuration is
+float and that limitation is part of what the option teaches.
+
+It does earn its keep as a second opinion, though. Building the suite both ways
+is how a timer bug surfaced that the float build hid: Q16.16 cannot represent
+1/60 and quantises it 0.025% short, which showed that a fixed epsilon in the
+scheduler should have been relative to the interval. That is a bonus, not the
+reason the option exists.
 
 ---
 
@@ -367,6 +378,21 @@ renderer, which is why every backend gets the same visualisation for free.
 | `TileMap` | a grid of indices, drawn with view culling |
 | `Animator` | sprite-sheet clips and the clock that drives them |
 
+### How a game reaches these
+
+Every subsystem above is reachable by any game, and the games use them rather
+than reimplementing them — that is the test of whether an abstraction is real.
+`Resources` is the clearest case: it is ambient, handed to every game through
+`GameContext`, because the correct arrangement is a single owner. Two systems
+asking for the same file get the same handle, and everything is released once,
+after the game shuts down and while the renderer is still alive.
+
+Before that existed the three games held **23 hand-written `loadPng` calls and 34
+matching `destroyTexture` calls** between them, and Flappy decoded
+`yellowbird-midflap.png` twice into two GPU textures because two builds happened
+to want it. There are now zero of either: no game contains manual texture
+lifetime management.
+
 `Collision` answers "these two overlap, push them apart". `Raycast` answers the
 other question a game asks constantly — "what is the first thing along this line,
 and where exactly did I hit it?" — which is behind enemy line of sight, hitscan
@@ -475,7 +501,8 @@ Stated plainly, because each is a choice rather than an omission:
 - **No scene graph transforms.** Positions are world-space; the camera projects.
   There is no matrix stack.
 - **No asset hot-reload, no editor, no scripting.**
-- **Fixed-point is opt-in,** and cannot represent an endless runner's world X.
+- **Fixed-point is opt-in,** a didactic alternative rather than a design
+  commitment; it cannot represent an endless runner's world X.
 
 ---
 

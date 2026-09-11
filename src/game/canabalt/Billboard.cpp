@@ -1,4 +1,5 @@
 #include "canabalt/Billboard.hpp"
+#include "asset/Resources.hpp"
 #include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <cstdio>
@@ -12,11 +13,10 @@ namespace {
 constexpr float kTile = 16.f;
 }
 
-void Billboard::load(IRenderer* r, const char* assetDir) {
-    if (!r || topMid_) return;
+void Billboard::load(Resources* res, const char* assetDir) {
+    if (!res || topMid_) return;
     auto tex = [&](const char* file, bool repeat) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir) + "/images/raw/" + file).c_str());
-        return im.valid() ? r->createTexture(im, repeat) : 0;
+        return res ? res->texture(std::string(assetDir) + "/images/raw/" + file, repeat) : 0;
     };
     topL_   = tex("billboard_top-left.png", false);   topMid_ = tex("billboard_top-middle.png", true);   topR_ = tex("billboard_top-right.png", false);
     midL_   = tex("billboard_middle-left.png", true); midR_   = tex("billboard_middle-right.png", true);
@@ -29,10 +29,10 @@ void Billboard::load(IRenderer* r, const char* assetDir) {
 }
 
 void Billboard::destroy(IRenderer* r) {
-    if (!r) return;
-    for (TextureHandle t : {topL_, topMid_, topR_, midL_, midR_, botL_, botMid_, botR_,
-                            catL_, catMid_, catR_, postTop_, dmg_[0], dmg_[1], dmg_[2]})
-        if (t) r->destroyTexture(t);
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void Billboard::draw(IRenderer& r, const Camera& cam, float wx, float wy, float ww, float wh,

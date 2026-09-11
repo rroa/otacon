@@ -3,6 +3,7 @@
 // debug grab/drag, and the RNG/quake toggles (F1-F4), and draws the HUD legend.
 #pragma once
 #include "IGame.hpp"
+#include "asset/Resources.hpp"
 #include "scene/Scene.hpp"
 #include "canabalt/Mode.hpp"
 #include "canabalt/PlayerSprite.hpp"
@@ -23,6 +24,9 @@ public:
     const char* title() const override { return "Canabalt (Otacon)"; }
     const char* statusLine() const override;
 
+    // Open on a given mode (0-based). For captures and screenshots.
+    void selectAtStartup(int index) { startMode_ = index; }
+
 private:
     void setMode(int index);
     void applyQuake(bool retrigger);           // push config to the camera
@@ -37,9 +41,11 @@ private:
     std::unique_ptr<Mode> mode_;
     GameRandom  rng_;                          // shared, switchable (F1)
     otacon::IRenderer* renderer_ = nullptr;    // for modes that create textures
+    otacon::Resources* resources_ = nullptr;   // the engine's load-once asset cache
     otacon::IAudio* audio_ = nullptr;          // sound output (from the engine)
     const char* assetDir_ = "";
     int  modeIndex_ = 0;
+    int  startMode_ = 0;
     const otacon::InputFrame* in_ = nullptr;
     otacon::Entity* grabbed_ = nullptr;
 

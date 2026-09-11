@@ -1,4 +1,5 @@
 #include "canabalt/SkyProps.hpp"
+#include "asset/Resources.hpp"
 #include "scene/Camera.hpp"
 #include "asset/Image.hpp"
 #include <algorithm>
@@ -12,15 +13,18 @@ namespace { constexpr float kViewW = 480.f; }   // logical screen width (FlxG.wi
 
 // === Jet =====================================================================
 
-void JetNode::load(IRenderer* r, const char* assetDir) {
-    if (tex_ || !r) return;
-    Image img = loadPng((std::string(assetDir) + "/images/raw/jet.png").c_str());
-    if (img.valid()) { w_ = img.width; h_ = img.height; tex_ = r->createTexture(img); }
+void JetNode::load(Resources* res, const char* assetDir) {
+    if (tex_ || !res) return;
+    const std::string path = std::string(assetDir) + "/images/raw/jet.png";
+    tex_ = res->texture(path);
+    res->size(path, w_, h_);   // drawn at native size
 }
 
 void JetNode::destroy(IRenderer* r) {
-    if (tex_ && r) r->destroyTexture(tex_);
-    tex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void JetNode::update(Real dt, const Camera&) {
@@ -50,10 +54,10 @@ void JetNode::render(IRenderer& r, const Camera& cam) const {
 
 // === Walker ==================================================================
 
-void WalkerNode::load(IRenderer* r, const char* assetDir) {
-    if (tex_ || !r) return;
-    Image img = loadPng((std::string(assetDir) + "/images/raw/walker.png").c_str());
-    if (img.valid()) { tex_ = r->createTexture(img); }
+void WalkerNode::load(Resources* res, const char* assetDir) {
+    if (tex_ || !res) return;
+    const std::string path = std::string(assetDir) + "/images/raw/walker.png";
+    tex_ = res->texture(path);
     // A small, slow exhaust/cannon plume that drifts upward (no gravity).
     smoke_.particleSize = {16, 16};
     smoke_.color = Color{0.72f, 0.72f, 0.76f, 0.22f};
@@ -65,8 +69,10 @@ void WalkerNode::load(IRenderer* r, const char* assetDir) {
 }
 
 void WalkerNode::destroy(IRenderer* r) {
-    if (tex_ && r) r->destroyTexture(tex_);
-    tex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void WalkerNode::place(float startX, int seed) {
@@ -148,15 +154,18 @@ void WalkerNode::render(IRenderer& r, const Camera& cam) const {
 
 // === Girder ==================================================================
 
-void GirderNode::load(IRenderer* r, const char* assetDir) {
-    if (tex_ || !r) return;
-    Image img = loadPng((std::string(assetDir) + "/images/raw/girder-tall.png").c_str());
-    if (img.valid()) { w_ = img.width; h_ = img.height; tex_ = r->createTexture(img); }
+void GirderNode::load(Resources* res, const char* assetDir) {
+    if (tex_ || !res) return;
+    const std::string path = std::string(assetDir) + "/images/raw/girder-tall.png";
+    tex_ = res->texture(path);
+    res->size(path, w_, h_);   // drawn at native size
 }
 
 void GirderNode::destroy(IRenderer* r) {
-    if (tex_ && r) r->destroyTexture(tex_);
-    tex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void GirderNode::update(Real, const Camera& cam) {

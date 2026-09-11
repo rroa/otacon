@@ -50,9 +50,11 @@ bool App::init(const WindowConfig& cfg, IGame* game, const char* assetDir) {
                 windowBackendName(), graphicsBackendName(), kScalarName);
 
     audio_ = createAudio();                       // CoreAudio on macOS, silent stub else
+    resources_.init(renderer_, audio_);           // both must exist before the cache
 
     GameContext ctx;
     ctx.renderer = renderer_; ctx.window = window_; ctx.audio = audio_; ctx.debug = &debug_;
+    ctx.resources = &resources_;
     ctx.logicalW = logicalW_; ctx.logicalH = logicalH_; ctx.assetDir = assetDir;
     game_->init(ctx);
     running_ = true;
@@ -247,6 +249,7 @@ report comes last so it can see everything that was released.
 */
 void App::shutdown() {
     if (game_) game_->shutdown();          // free game GPU resources first
+    resources_.shutdown();                 // ...then the cache, still before the renderer
     if (audio_)    { delete audio_; audio_ = nullptr; }   // stops the audio thread
     if (renderer_) { renderer_->shutdown(); delete renderer_; renderer_ = nullptr; }
     if (window_)   { delete window_; window_ = nullptr; }

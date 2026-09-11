@@ -599,28 +599,27 @@ private:
     void loadTextures() {
         if (bgTex_) return;
         auto load = [&](const char* f, bool repeat = false) -> TextureHandle {
-            Image im = loadPng((std::string(assetDir_) + "/images/raw/" + f).c_str());
-            return (im.valid() && renderer_) ? renderer_->createTexture(im, repeat) : 0;
+            return resources_ ? resources_->texture(std::string(assetDir_) + "/images/raw/" + f, repeat) : 0;
         };
         bgTex_   = load("background-trimmed.png");   // 480x48
         mg1Tex_  = load("midground1-trimmed.png");   // 480x97
         mg2Tex_  = load("midground2-trimmed.png");
         shipTex_ = load("mothership-filled.png");    // 240x40 distant easter egg
         towerTex_= load("dark_tower-filled.png");    // 128x128 distant easter egg
-        jet_.load(renderer_, assetDir_);             // streaking jet
-        walkerA_.load(renderer_, assetDir_);         // marching mechs
-        walkerB_.load(renderer_, assetDir_);
-        girder_.load(renderer_, assetDir_);          // foreground girder sweep
-        hud_.load(renderer_, assetDir_);             // distance odometer
-        gameOver_.load(renderer_, assetDir_);        // death overlay
-        title_.load(renderer_, assetDir_);           // start screen
+        jet_.load(resources_, assetDir_);             // streaking jet
+        walkerA_.load(resources_, assetDir_);         // marching mechs
+        walkerB_.load(resources_, assetDir_);
+        girder_.load(resources_, assetDir_);          // foreground girder sweep
+        hud_.load(resources_, assetDir_);             // distance odometer
+        gameOver_.load(resources_, assetDir_);        // death overlay
+        title_.load(resources_, assetDir_);           // start screen
         sounds_.load(audio_, assetDir_);             // SFX bank (in-house CAF decode)
         loadHighScore();                             // best distance from a prior session
-        buildings_.load(renderer_, assetDir_);       // wall/window/roof tiles
-        crane_.load(renderer_, assetDir_);           // crane pieces
-        billboard_.load(renderer_, assetDir_);       // billboard pieces
-        deco_.load(renderer_, assetDir_);            // rooftop props
-        leg_.load(renderer_, assetDir_);             // giant leg
+        buildings_.load(resources_, assetDir_);       // wall/window/roof tiles
+        crane_.load(resources_, assetDir_);           // crane pieces
+        billboard_.load(resources_, assetDir_);       // billboard pieces
+        deco_.load(resources_, assetDir_);            // rooftop props
+        leg_.load(resources_, assetDir_);             // giant leg
         // Particle sheets (shown when the reveal reaches the particle level).
         smokeTex_ = load("smoke.png");               // 4 x 32px puffs
         gibTex_   = load("demo_gibs.png");           // 6 x 20px chunks
@@ -751,9 +750,10 @@ private:
 
 public:
     ~InfiniteMode() override {
+        // Every texture above is owned by the engine's Resources cache, which
+        // releases each exactly once after the game shuts down. The destroy()
+        // calls below are now no-ops kept for symmetry with load().
         if (renderer_) {
-            for (TextureHandle t : {bgTex_, mg1Tex_, mg2Tex_, shipTex_, towerTex_, smokeTex_, gibTex_, doveTex_, glassTex_, bombTex_, obTex_, obTex2_})
-                if (t) renderer_->destroyTexture(t);
             buildings_.destroy(renderer_);
             crane_.destroy(renderer_);
             billboard_.destroy(renderer_);

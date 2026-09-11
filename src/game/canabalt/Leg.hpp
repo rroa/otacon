@@ -5,6 +5,7 @@
 // the building, and the upper leg (giant_leg_top) hanging above it. The drop and
 // the stomp event are driven by the generator; this only draws the current pose.
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Camera.hpp"
 #include "render/IRenderer.hpp"
 
@@ -12,7 +13,7 @@ namespace canabalt {
 
 class Leg {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
     bool loaded() const { return bottom_ != 0; }
     // (legX,legY) is the world top-left of the lower leg (128x512).

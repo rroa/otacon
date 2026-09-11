@@ -6,6 +6,7 @@
 // frame) it drives every roll from the building's decor seed instead of a live
 // RNG, so the same building always grows the same clutter.
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Camera.hpp"
 #include "render/IRenderer.hpp"
 #include <cstdint>
@@ -14,7 +15,7 @@ namespace canabalt {
 
 class Decoration {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
     bool loaded() const { return ac_ != 0; }
     // Decorate the roof of the building rect (wx,wy = top-left, ww = width).

@@ -1,4 +1,5 @@
 #include "canabalt/PlayerSprite.hpp"
+#include "asset/Resources.hpp"
 #include "canabalt/Player.hpp"
 #include "scene/Camera.hpp"
 #include "asset/Image.hpp"
@@ -9,15 +10,18 @@ using namespace otacon;
 
 namespace canabalt {
 
-void PlayerSpriteNode::load(IRenderer* r, const char* assetDir) {
-    if (tex_ || !r) return;
-    Image img = loadPng((std::string(assetDir) + "/images/player2.png").c_str());
-    if (img.valid()) { texW_ = img.width; texH_ = img.height; tex_ = r->createTexture(img); }
+void PlayerSpriteNode::load(Resources* res, const char* assetDir) {
+    if (tex_ || !res) return;
+    const std::string path = std::string(assetDir) + "/images/player2.png";
+    tex_ = res->texture(path);
+    res->size(path, texW_, texH_);   // drawn at native size
 }
 
 void PlayerSpriteNode::destroy(IRenderer* r) {
-    if (tex_ && r) r->destroyTexture(tex_);
-    tex_ = 0;
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void PlayerSpriteNode::setTarget(Player* p) {

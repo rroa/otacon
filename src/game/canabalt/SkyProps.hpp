@@ -7,6 +7,7 @@
 // and its own little random stream (kept separate from the level generator's RNG
 // so they never disturb which buildings get generated).
 #pragma once
+#include "asset/Resources.hpp"
 #include "core/math/Random.hpp"
 #include "scene/Node.hpp"
 #include "scene/Emitter.hpp"
@@ -21,7 +22,7 @@ namespace canabalt {
 // flies left at high speed, rattling the camera as it passes (Jet.m).
 class JetNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
     void useCamera(otacon::Camera* c) { quakeCam_ = c; }   // the jet shakes the screen
     bool consumeFired() { bool f = fired_; fired_ = false; return f; }   // for the flyby SFX
@@ -47,7 +48,7 @@ private:
 // When it scrolls off the left it warps back ahead, re-randomising its facing.
 class WalkerNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
     void place(float startX, int seed);   // initial world x + per-walker random seed
     void setSmokeTexture(otacon::TextureHandle t) { smoke_.texture = t; }  // reveal toggle
@@ -81,7 +82,7 @@ private:
 // beam streaks past now and then rather than on a fixed beat.
 class GirderNode final : public otacon::Node {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
 
     void update(otacon::Real dt, const otacon::Camera& cam) override;

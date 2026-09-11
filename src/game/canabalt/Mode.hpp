@@ -5,6 +5,7 @@
 // Modes are handed ModeServices: the shared GameRandom (so the level honours the
 // F1 RNG toggle), the renderer (to create textures), and the asset directory.
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Scene.hpp"
 #include "scene/Node.hpp"
 #include "platform/Window.hpp"
@@ -38,6 +39,7 @@ struct SpriteReveal {
 struct ModeServices {
     GameRandom&         rng;
     otacon::IRenderer*  renderer;
+    otacon::Resources*  resources = nullptr;    // engine load-once asset cache
     const char*         assetDir;
     otacon::IAudio*     audio = nullptr;             // sound output (null => silent)
     const bool*         particlesEnabled = nullptr;   // game-wide toggle (null => always on)
@@ -47,7 +49,8 @@ struct ModeServices {
 class Mode {
 public:
     explicit Mode(const ModeServices& s)
-        : gameRng_(s.rng), renderer_(s.renderer), assetDir_(s.assetDir), audio_(s.audio),
+        : gameRng_(s.rng), renderer_(s.renderer), resources_(s.resources),
+          assetDir_(s.assetDir), audio_(s.audio),
           particlesEnabled_(s.particlesEnabled), sprites_(s.sprites) {}
     virtual ~Mode() = default;
 
@@ -76,6 +79,7 @@ public:
 protected:
     GameRandom&         gameRng_;
     otacon::IRenderer*  renderer_;
+    otacon::Resources*  resources_;
     const char*         assetDir_;
     otacon::IAudio*     audio_;
     const bool*         particlesEnabled_;

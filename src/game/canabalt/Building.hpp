@@ -8,6 +8,7 @@
 // horizontal strip and each edge is a single textured draw. The tile textures
 // are loaded once and shared by every building.
 #pragma once
+#include "asset/Resources.hpp"
 #include "scene/Entity.hpp"
 #include "scene/Camera.hpp"
 #include "render/IRenderer.hpp"
@@ -17,7 +18,7 @@ namespace canabalt {
 
 class Building {
 public:
-    void load(otacon::IRenderer* r, const char* assetDir);
+    void load(otacon::Resources* res, const char* assetDir);
     void destroy(otacon::IRenderer* r);
     bool loaded() const { return wallMid_[0] != 0; }
 

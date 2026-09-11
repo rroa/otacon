@@ -1,4 +1,5 @@
 #include "canabalt/Leg.hpp"
+#include "asset/Resources.hpp"
 #include "asset/Image.hpp"
 #include <string>
 
@@ -6,20 +7,20 @@ using namespace otacon;
 
 namespace canabalt {
 
-void Leg::load(IRenderer* r, const char* assetDir) {
-    if (!r || bottom_) return;
+void Leg::load(Resources* res, const char* assetDir) {
+    if (!res || bottom_) return;
     auto tex = [&](const char* file) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir) + "/images/raw/" + file).c_str());
-        return im.valid() ? r->createTexture(im, false) : 0;
+        return res ? res->texture(std::string(assetDir) + "/images/raw/" + file) : 0;
     };
     top_    = tex("giant_leg_top.png");
     bottom_ = tex("giant_leg_bottom.png");
 }
 
 void Leg::destroy(IRenderer* r) {
-    if (!r) return;
-    if (top_) r->destroyTexture(top_);
-    if (bottom_) r->destroyTexture(bottom_);
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void Leg::draw(IRenderer& r, const Camera& cam, float legX, float legY) const {

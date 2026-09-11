@@ -21,6 +21,7 @@ class IRenderer;
 class IWindow;
 class IAudio;
 class DebugRuntime;
+class Resources;
 struct InputFrame;
 
 struct GameContext {
@@ -28,6 +29,12 @@ struct GameContext {
     IWindow*      window   = nullptr;
     IAudio*       audio    = nullptr;
     DebugRuntime* debug    = nullptr;
+    // Load-once cache for textures and sounds, owned by the App. Ambient rather
+    // than per-game because the correct thing here is a single owner: two
+    // systems loading the same file should get the same handle, and everything
+    // must be released while the renderer is still alive. A game that manages
+    // its own textures may ignore this, but then it owns that ordering problem.
+    Resources*    resources = nullptr;
     int           logicalW = 480;
     int           logicalH = 320;
     const char*   assetDir = "";

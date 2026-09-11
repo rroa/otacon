@@ -7,15 +7,14 @@
 namespace flappy {
 
 PipeTextureScene::~PipeTextureScene() {
-    if (greenPipe_ && renderer_) renderer_->destroyTexture(greenPipe_);
+    // Cache-owned; nothing to free.
 }
 
 void PipeTextureScene::init(otacon::GameContext& ctx) {
     TextureScene::init(ctx);    // load the bird sprite (base behavior)
     renderer_ = ctx.renderer;
     const std::string path = std::string(ctx.assetDir) + "/sprites/pipe-green.png";
-    otacon::Image img = otacon::loadPng(path.c_str());
-    if (img.valid() && renderer_) greenPipe_ = renderer_->createTexture(img);
+    if (res_) greenPipe_ = res_->texture(path);
     pipeTex_ = greenPipe_;      // active texture defaults to green
 }
 

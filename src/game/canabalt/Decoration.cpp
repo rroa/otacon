@@ -1,4 +1,5 @@
 #include "canabalt/Decoration.hpp"
+#include "asset/Resources.hpp"
 #include "core/math/Random.hpp"
 #include "asset/Image.hpp"
 #include <string>
@@ -13,11 +14,10 @@ constexpr float kAh  = 160.f;  // antenna height above the roof
 constexpr float kT   = 16.f;
 }
 
-void Decoration::load(IRenderer* r, const char* assetDir) {
-    if (!r || ac_) return;
+void Decoration::load(Resources* res, const char* assetDir) {
+    if (!res || ac_) return;
     auto tex = [&](const char* file, bool repeat) -> TextureHandle {
-        Image im = loadPng((std::string(assetDir) + "/images/raw/" + file).c_str());
-        return im.valid() ? r->createTexture(im, repeat) : 0;
+        return res ? res->texture(std::string(assetDir) + "/images/raw/" + file, repeat) : 0;
     };
     ac_       = tex("ac-trimmed.png", false);
     pipe1L_   = tex("pipe1-left.png", false);  pipe1R_ = tex("pipe1-right.png", false);
@@ -32,10 +32,10 @@ void Decoration::load(IRenderer* r, const char* assetDir) {
 }
 
 void Decoration::destroy(IRenderer* r) {
-    if (!r) return;
-    for (TextureHandle t : {ac_, pipe1L_, pipe1R_, pipe2L_, pipe2M_, pipe2R_, antL_, antR_, ant2_,
-                            ant3_, ant4_, ant5_, ant6_, dishes_, skylight_, access_, reservoir_, fence_})
-        if (t) r->destroyTexture(t);
+    // Nothing to free: these textures are owned by the engine's Resources
+    // cache, which releases them once, after the game shuts down and while
+    // the renderer is still alive. Freeing them here too would double-free.
+    (void)r;
 }
 
 void Decoration::draw(IRenderer& r, const Camera& cam, float wx, float wy, float ww,
