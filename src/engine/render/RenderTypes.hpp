@@ -37,4 +37,8 @@ struct TexVertex {
 // a Vulkan descriptor index, …).
 using TextureHandle = std::uint32_t;
 
+// Opaque compiled fragment-effect id (0 == none / the built-in shader). Only
+// backends whose supportsShaders() is true ever hand out a non-zero one.
+using ShaderHandle = std::uint32_t;
+
 } // namespace otacon

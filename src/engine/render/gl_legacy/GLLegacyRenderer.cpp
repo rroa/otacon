@@ -36,6 +36,13 @@ public:
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         return TextureHandle(tex);
     }
+    void updateTexture(TextureHandle t, int w, int h, const std::uint8_t* rgba) override {
+        if (!t || !rgba) return;
+        glBindTexture(GL_TEXTURE_2D, GLuint(t));
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
+    // supportsShaders() stays false: this backend is fixed-function immediate
+    // mode, so there is no programmable stage to compile an effect into.
     void destroyTexture(TextureHandle t) override {
         if (t) { GLuint id = t; glDeleteTextures(1, &id); }
     }

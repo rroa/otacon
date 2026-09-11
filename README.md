@@ -1,4 +1,4 @@
-# Otacon — a didactic 2D game engine, and three games on it
+# Otacon — a didactic 2D game engine, three games, and fifteen samples
 
 A teaching project in C++17: a small, reusable, **in-house** 2D engine
 (**Otacon**) with three games built on top of it. Almost everything is written
@@ -50,6 +50,55 @@ On top of the seams: a flixel-faithful simulation (midpoint integrator,
 swept-AABB collision separation, follow camera with parallax and screen quake),
 a `Scene`/`Node` tree, and a particle `Emitter`.
 
+## Engine samples
+
+Fifteen screens demonstrating the engine itself, in one executable — paged the
+same way Canabalt pages modes and Flappy pages builds. They link `otacon` and
+nothing else: a sample that needed a game's code would mean a seam had leaked.
+Every texture they use is generated in code, so there are no sample assets.
+
+```
+./build/bin/samples                 # F1 for the list, [ / ] to page
+./build/bin/samples --sample 5      # open one directly
+```
+
+| # | Sample | What it shows |
+|---|--------|---------------|
+| 1 | Hello Sprite | four ways to draw, one triangle path underneath |
+| 2 | Sprite Animation | a frame is a clock problem and a UV problem |
+| 3 | Tilemap World | a world of indices, drawn only where you can see |
+| 4 | Parallax Camera | depth is one multiply: `scroll * scrollFactor` |
+| 5 | 2D Lighting + Normals | the same N·L on the CPU and on the GPU |
+| 6 | Particles | an emitter is a pool of ordinary entities |
+| 7 | Physics Playground | AABB separation, one axis at a time, no bounce |
+| 8 | Pendulum | the integrator you pick is visible in the energy |
+| 9 | Chain & Rope | verlet points, and relaxation as the stiffness knob |
+| 10 | Platformer Controller | game feel is five timers you can switch off |
+| 11 | Top-Down Movement | normalise the stick, and let the camera lag |
+| 12 | Pathfinding / Boids | one global search, one set of local rules |
+| 13 | Shader Playground | the same effect either side of the renderer seam |
+| 14 | Procedural Dungeon | generation you can single-step, with a seed |
+| 15 | Stress Test | find the wall, and learn which wall it is |
+
+Adding a sample is one `.cpp` plus one row in `src/samples/Registry.cpp` — CMake
+globs the directory and the gallery reads the table.
+
+### Two paths for per-pixel work
+
+Samples 5 and 13 need per-pixel control, which sits awkwardly against the
+engine's central promise that every backend draws the same thing — only GL
+modern has a programmable stage. So both exist:
+
+* **CPU path** — the sample shades a `Canvas` in plain C++ and uploads it with
+  `IRenderer::updateTexture`. Runs on all three backends, GL legacy included.
+* **GPU path** — `IRenderer::createEffect` compiles a fragment shader. GL modern
+  reports `supportsShaders() == true` and runs it; GL legacy (fixed-function)
+  and Vulkan (pre-built SPIR-V, no runtime compiler) report false.
+
+Every shader-using sample keeps the CPU path as its reference, so nothing is
+backend-exclusive and the cross-backend contract still means something. Press
+`E` in either sample to switch; the panel always says which path is live and why.
+
 ## Configuring the build
 
 Edit `config/build.cfg` and re-run CMake (it reconfigures automatically when the
@@ -87,6 +136,9 @@ on/off · `F3`/`F4` = quake weaker/stronger.
 **Flappy:** `Space`/`Up`/`W` = flap · `]`/`[` = next/prev build ·
 `F1`/`F2` = gravity −/+ (build 1.b).
 
+**Samples:** `F1` = the sample list · `F2` = per-sample help · `]`/`[` = page ·
+`R` = reset. Every other key belongs to the open sample; `F2` lists them.
+
 ## Verification
 
 `tools/backend-diff.sh` renders the same deterministic frame in each graphics
@@ -100,8 +152,9 @@ cmake --build build --target otacon_smoke -j8
 ./build/bin/otacon_smoke
 ```
 
-Each game also accepts `--capture <png> [--frames N]` to render N deterministic
-frames with the UI hidden and quit; `flappy` additionally accepts
+Each game and the samples accept `--capture <png> [--frames N]` to render N
+deterministic frames with the UI hidden and quit (`samples` also takes
+`--sample N`); `flappy` additionally accepts
 `--record <dir>` (a PNG sequence) and `--demo` (self-play, for recording).
 
 ## Documentation
@@ -120,6 +173,7 @@ with `tools/build-docs.sh` (needs `tectonic`).
 | `src/game/canabalt/` | Canabalt, with its own `assets/` and `docs/` |
 | `src/game/dino/` | The Chromium T-Rex runner, with its own `assets/` |
 | `src/game/flappy/` | Flappy Bird, one `Scene` per build, with its own `assets/` |
+| `src/samples/` | Fifteen engine samples (exe `samples`) |
 | `tests/smoke.cpp` | Headless engine self-tests (`otacon_smoke`) |
 | `config/build.cfg` | Backend / scalar selection |
 | `cmake/`, `tools/` | Config parser; run, docs and backend-diff scripts |
@@ -133,4 +187,5 @@ from, and is fetched separately.
 Everything above runs. All three graphics backends (GL modern, GL legacy,
 Vulkan) and both window backends (GLFW, SDL2) are implemented and
 interchangeable, textured sprites and audio are in, the `FIXED` (Q16.16) build
-compiles and runs, and the headless test suite passes.
+compiles and runs, the fifteen samples run on every backend, and the headless
+test suite passes.

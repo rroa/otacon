@@ -144,6 +144,16 @@ target_link_libraries(flappy PRIVATE otacon)
 target_compile_definitions(flappy PRIVATE OTACON_ASSET_DIR="${CMAKE_SOURCE_DIR}/src/game/flappy/assets")
 
 # ============================================================================
+#  Engine samples — fifteen screens demonstrating the engine itself, hosted by
+#  one executable. Not a game: this links otacon and nothing else, which is the
+#  point (a sample that needed a game's code would mean the seam leaked).
+# ============================================================================
+file(GLOB_RECURSE SAMPLES_SRC CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/samples/*.cpp)
+add_executable(samples ${SAMPLES_SRC})
+target_include_directories(samples PRIVATE ${CMAKE_SOURCE_DIR}/src/samples)
+target_link_libraries(samples PRIVATE otacon)
+
+# ============================================================================
 #  Headless engine smoke tests (no window). Build & run: otacon_smoke
 # ============================================================================
 if(EXISTS ${CMAKE_SOURCE_DIR}/tests/smoke.cpp)
@@ -157,4 +167,4 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/tests/smoke.cpp)
   target_compile_definitions(otacon_smoke PRIVATE OTACON_ASSET_DIR="${CMAKE_SOURCE_DIR}/src/game/canabalt/assets")
 endif()
 
-message(STATUS "Otacon: configured  (engine lib 'otacon' + game exes 'canabalt', 'dino', 'flappy')")
+message(STATUS "Otacon: configured  (engine lib 'otacon' + games 'canabalt', 'dino', 'flappy' + 'samples')")

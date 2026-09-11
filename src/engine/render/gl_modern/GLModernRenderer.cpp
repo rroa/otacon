@@ -55,6 +55,7 @@ public:
         if (texVbo_) DeleteBuffers(1, &texVbo_);
         if (texVao_) DeleteVertexArrays(1, &texVao_);
         if (texProg_) DeleteProgram(texProg_);
+        effect_ = 0;   // effects are owned by whoever created them (the sample)
     }
     const char* name() const override { return "OpenGL Modern (core 3.3)"; }
     void setWireframe(bool on) override { wireframe_ = on; }
@@ -72,6 +73,48 @@ public:
     }
     void destroyTexture(TextureHandle t) override {
         if (t) { GLuint id = t; DeleteTextures(1, &id); }
+    }
+    void updateTexture(TextureHandle t, int w, int h, const std::uint8_t* rgba) override {
+        if (!t || !rgba) return;
+        BindTexture(GL_TEXTURE_2D, GLuint(t));
+        // TexSubImage2D re-uses the existing storage — no reallocation per frame.
+        TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
+
+    // ---- Fragment effects --------------------------------------------------
+    // The one backend with a reachable programmable stage, so this is where the
+    // live-GLSL path lives. An effect re-uses the engine's textured vertex
+    // shader (kTexVert) and swaps only the fragment stage.
+    bool supportsShaders() const override { return true; }
+
+    ShaderHandle createEffect(const char* fragmentSrc, char* log, std::size_t logSize) override {
+        if (log && logSize) log[0] = '\0';
+        GLuint vs = compile(GL_VERTEX_SHADER, kTexVert, nullptr, 0);
+        if (!vs) return 0;
+        GLuint fs = compile(GL_FRAGMENT_SHADER, fragmentSrc, log, logSize);
+        if (!fs) { DeleteShader(vs); return 0; }
+        GLuint p = CreateProgram();
+        AttachShader(p, vs); AttachShader(p, fs); LinkProgram(p);
+        GLint ok = 0; GetProgramiv(p, GL_LINK_STATUS, &ok);
+        DeleteShader(vs); DeleteShader(fs);
+        if (!ok) {
+            if (log && logSize) GetProgramInfoLog(p, GLsizei(logSize), nullptr, log);
+            DeleteProgram(p);
+            return 0;
+        }
+        return ShaderHandle(p);
+    }
+    void destroyEffect(ShaderHandle e) override {
+        if (e == effect_) effect_ = 0;
+        if (e) DeleteProgram(GLuint(e));
+    }
+    void useEffect(ShaderHandle e) override { effect_ = GLuint(e); }
+    void setEffectTime(float seconds) override { effectTime_ = seconds; }
+    void setEffectUniform(const char* name_, float x, float y, float z, float w) override {
+        if (!effect_ || !name_) return;
+        UseProgram(effect_);
+        GLint loc = GetUniformLocation(effect_, name_);
+        if (loc >= 0) Uniform4f(loc, x, y, z, w);
     }
     bool readPixels(int& w, int& h, std::vector<std::uint8_t>& rgba) override {
         int fbw = 0, fbh = 0; window_->framebufferSize(fbw, fbh);
@@ -151,11 +194,26 @@ protected:
 
     void submitTextured(const TexVertex* verts, std::size_t count, TextureHandle tex) override {
         if (!count || !tex) return;
-        UseProgram(texProg_);
-        Uniform2f(texUViewport_, float(logicalW_), float(logicalH_));
+        // A bound effect replaces the fragment stage; the vertex stage (and so
+        // the projection) is the engine's either way.
+        // The built-in path uses locations cached at init; only an effect (rare,
+        // and re-bound on edit) pays for name lookups.
+        const GLuint prog = effect_ ? effect_ : texProg_;
+        UseProgram(prog);
+        if (effect_) {
+            Uniform2f(GetUniformLocation(prog, "uViewport"), float(logicalW_), float(logicalH_));
+            GLint loc = GetUniformLocation(prog, "uResolution");
+            if (loc >= 0) Uniform2f(loc, float(logicalW_), float(logicalH_));
+            loc = GetUniformLocation(prog, "uTime");
+            if (loc >= 0) Uniform1f(loc, effectTime_);
+            loc = GetUniformLocation(prog, "uTex");
+            if (loc >= 0) Uniform1i(loc, 0);
+        } else {
+            Uniform2f(texUViewport_, float(logicalW_), float(logicalH_));
+            Uniform1i(texSampler_, 0);
+        }
         ActiveTexture(GL_TEXTURE0);
         BindTexture(GL_TEXTURE_2D, GLuint(tex));
-        Uniform1i(texSampler_, 0);
         BindVertexArray(texVao_);
         BindBuffer(GL_ARRAY_BUFFER, texVbo_);
         BufferData(GL_ARRAY_BUFFER, GLsizeiptr(count * sizeof(TexVertex)), verts, GL_DYNAMIC_DRAW);
@@ -163,13 +221,19 @@ protected:
     }
 
 private:
-    static GLuint compile(GLenum type, const char* src) {
+    // `outLog` is optional: the built-in shaders just print to stderr, while a
+    // user effect needs the driver's text handed back so it can be displayed.
+    static GLuint compile(GLenum type, const char* src, char* outLog = nullptr, std::size_t outLogSize = 0) {
         GLuint s = CreateShader(type);
         ShaderSource(s, 1, &src, nullptr);
         CompileShader(s);
         GLint ok = 0; GetShaderiv(s, GL_COMPILE_STATUS, &ok);
-        if (!ok) { char log[1024]; GetShaderInfoLog(s, 1024, nullptr, log);
-                   std::fprintf(stderr, "[gl] shader compile error: %s\n", log); DeleteShader(s); return 0; }
+        if (!ok) {
+            char log[1024]; GetShaderInfoLog(s, 1024, nullptr, log);
+            if (outLog && outLogSize) std::snprintf(outLog, outLogSize, "%s", log);
+            else std::fprintf(stderr, "[gl] shader compile error: %s\n", log);
+            DeleteShader(s); return 0;
+        }
         return s;
     }
     static GLuint buildProgram(const char* vsrc, const char* fsrc) {
@@ -189,6 +253,8 @@ private:
     GLuint prog_ = 0, vao_ = 0, vbo_ = 0;
     GLuint texProg_ = 0, texVao_ = 0, texVbo_ = 0;
     GLint  uViewport_ = -1, texUViewport_ = -1, texSampler_ = -1;
+    GLuint effect_ = 0;            // bound user fragment effect (0 = built-in)
+    float  effectTime_ = 0.f;
     bool   wireframe_ = false;
 };
 

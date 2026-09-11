@@ -173,6 +173,25 @@ static std::array<std::uint8_t, 5> glyph(char ch) {
         case '<': return {0b001,0b010,0b100,0b010,0b001};
         case '>': return {0b100,0b010,0b001,0b010,0b100};
         case '#': return {0b101,0b111,0b101,0b111,0b101};
+        // Punctuation the overlays and the samples' source listings need. A 3x5
+        // cell cannot be subtle about it, but a legible approximation beats the
+        // blank the default case would otherwise draw.
+        case '*': return {0b000,0b101,0b010,0b101,0b000};
+        case ';': return {0b000,0b010,0b000,0b010,0b100};
+        case '_': return {0b000,0b000,0b000,0b000,0b111};
+        case '\'': return {0b010,0b010,0b000,0b000,0b000};
+        case '"': return {0b101,0b101,0b000,0b000,0b000};
+        case '?': return {0b111,0b001,0b011,0b000,0b010};
+        case '{': return {0b011,0b010,0b110,0b010,0b011};
+        case '}': return {0b110,0b010,0b011,0b010,0b110};
+        case '|': return {0b010,0b010,0b010,0b010,0b010};
+        case '^': return {0b010,0b101,0b000,0b000,0b000};
+        case '~': return {0b000,0b000,0b011,0b110,0b000};
+        case '&': return {0b110,0b110,0b111,0b101,0b011};
+        case '@': return {0b111,0b101,0b111,0b100,0b111};
+        case '$': return {0b011,0b110,0b011,0b110,0b010};
+        case '\\': return {0b100,0b100,0b010,0b001,0b001};
+        case '`': return {0b100,0b010,0b000,0b000,0b000};
         default:  return {0,0,0,0,0};   // space / unknown
     }
 }

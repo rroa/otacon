@@ -321,6 +321,34 @@ The contract:
 \code{tools/run.sh} (it sets \code{DYLD\_FALLBACK\_LIBRARY\_PATH} and
 \code{VK\_ICD\_FILENAMES}).
 
+\chapter{Samples}\label{ch:samples}
+Fifteen sample screens (\code{src/samples/}, executable \code{samples}) exercise
+the engine on its own. They link \code{otacon} and nothing else, and generate
+every texture they use in code --- a sample that borrowed a game's art would mean
+a seam had leaked. One gallery object hosts them all, so adding a sample is one
+\code{.cpp} plus one row in \code{Registry.cpp}.
+
+\section{Per-pixel work and the shader seam}
+Two samples (2D lighting, and the shader playground) need per-fragment control,
+which sits awkwardly against the cross-backend contract: only the modern OpenGL
+backend has a reachable programmable stage. The engine therefore offers both
+halves and lets a sample choose:
+
+\begin{itemize}[nosep]
+  \item \code{updateTexture(tex, w, h, rgba)} re-uploads an existing texture's
+        pixels. A sample shades a buffer in plain C++ and pushes it once per
+        frame. This works on every backend, GL legacy included.
+  \item \code{createEffect(fragmentSrc, log, logSize)} compiles a user fragment
+        shader, with \code{useEffect} and \code{setEffectUniform} to drive it.
+        The engine keeps the vertex stage so the projection stays identical.
+        \code{supportsShaders()} reports whether the backend can do this at all:
+        true for GL modern, false for GL legacy (fixed-function) and for Vulkan
+        (pre-built SPIR-V, no runtime compiler).
+\end{itemize}
+
+Every sample that uses an effect also carries the CPU path, so no sample is
+backend-exclusive and Chapter~\ref{ch:verify}'s contract still holds everywhere.
+
 \chapter{Debug \& dev tools}
 These are engine-level and work in any game (state shown in the HUD when visible):
 \begin{itemize}[nosep]

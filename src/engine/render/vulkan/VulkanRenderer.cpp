@@ -64,6 +64,10 @@ public:
     void setWireframe(bool on) override { wireframe_ = on; }
 
     TextureHandle createTexture(int w, int h, const std::uint8_t* rgba, bool repeat) override;
+    void updateTexture(TextureHandle t, int w, int h, const std::uint8_t* rgba) override;
+    // supportsShaders() stays false: the pipelines here are built from SPIR-V
+    // pre-compiled into headers at build time, and there is no runtime GLSL
+    // compiler to turn a user string into a stage.  See IRenderer.hpp.
     void destroyTexture(TextureHandle t) override {
         if (t == 0 || t > textures_.size()) return;
         vkDeviceWaitIdle(device_);
@@ -92,6 +96,12 @@ private:
         VkDeviceMemory mem = VK_NULL_HANDLE;
         VkImageView view = VK_NULL_HANDLE;
         VkDescriptorSet set = VK_NULL_HANDLE;
+        int w = 0, h = 0;
+        // Kept alive across updateTexture() calls so a per-frame CPU-rasterized
+        // texture does not allocate a staging buffer every frame.
+        VkBuffer       staging = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMem = VK_NULL_HANDLE;
+        VkDeviceSize   stagingBytes = 0;
         bool alive = false;
     };
 
@@ -697,7 +707,7 @@ TextureHandle VulkanRenderer::createTexture(int w, int h, const std::uint8_t* rg
     void* p = nullptr; vkMapMemory(device_, stagingMem, 0, bytes, 0, &p);
     std::memcpy(p, rgba, bytes); vkUnmapMemory(device_, stagingMem);
 
-    VkTexture t; t.alive = true;
+    VkTexture t; t.alive = true; t.w = w; t.h = h;
     VkImageCreateInfo ii{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     ii.imageType = VK_IMAGE_TYPE_2D; ii.format = VK_FORMAT_R8G8B8A8_UNORM;
     ii.extent = {uint32_t(w), uint32_t(h), 1}; ii.mipLevels = 1; ii.arrayLayers = 1;
@@ -766,10 +776,74 @@ TextureHandle VulkanRenderer::createTexture(int w, int h, const std::uint8_t* rg
 
 void VulkanRenderer::destroyTex(VkTexture& t) {
     if (!t.alive) return;
+    if (t.staging) vkDestroyBuffer(device_, t.staging, nullptr);
+    if (t.stagingMem) vkFreeMemory(device_, t.stagingMem, nullptr);
     if (t.view) vkDestroyImageView(device_, t.view, nullptr);
     if (t.image) vkDestroyImage(device_, t.image, nullptr);
     if (t.mem) vkFreeMemory(device_, t.mem, nullptr);
     t = VkTexture{};
+}
+
+// Re-upload an existing image's pixels. Unlike GL's glTexSubImage2D this is not
+// a one-liner: the pixels must land in a host-visible staging buffer, then be
+// copied into the device-local image by a command buffer, with layout
+// transitions on either side. We keep the staging buffer on the texture and
+// submit a small one-time command, which is the clearest correct version; a
+// production engine would batch these into the frame's own command buffer
+// instead of waiting on the queue.
+void VulkanRenderer::updateTexture(TextureHandle handle, int w, int h, const std::uint8_t* rgba) {
+    if (!handle || handle > textures_.size() || !rgba) return;
+    VkTexture& t = textures_[handle - 1];
+    if (!t.alive || w != t.w || h != t.h) return;   // same-extent contract
+
+    const VkDeviceSize bytes = VkDeviceSize(w) * h * 4;
+    if (t.staging == VK_NULL_HANDLE || t.stagingBytes < bytes) {
+        if (t.staging) vkDestroyBuffer(device_, t.staging, nullptr);
+        if (t.stagingMem) vkFreeMemory(device_, t.stagingMem, nullptr);
+        t.staging = VK_NULL_HANDLE; t.stagingMem = VK_NULL_HANDLE; t.stagingBytes = 0;
+        if (!createBuffer(bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          t.staging, t.stagingMem)) return;
+        t.stagingBytes = bytes;
+    }
+    void* p = nullptr;
+    if (vkMapMemory(device_, t.stagingMem, 0, bytes, 0, &p) != VK_SUCCESS) return;
+    std::memcpy(p, rgba, bytes);
+    vkUnmapMemory(device_, t.stagingMem);
+
+    VkCommandBufferAllocateInfo cai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    cai.commandPool = cmdPool_; cai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; cai.commandBufferCount = 1;
+    VkCommandBuffer cmd = VK_NULL_HANDLE;
+    if (vkAllocateCommandBuffers(device_, &cai, &cmd) != VK_SUCCESS) return;
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+
+    auto barrier = [&](VkImageLayout from, VkImageLayout to, VkAccessFlags sa, VkAccessFlags da,
+                       VkPipelineStageFlags ss, VkPipelineStageFlags dstS) {
+        VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        b.oldLayout = from; b.newLayout = to; b.image = t.image;
+        b.srcAccessMask = sa; b.dstAccessMask = da;
+        b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        vkCmdPipelineBarrier(cmd, ss, dstS, 0, 0, nullptr, 0, nullptr, 1, &b);
+    };
+    barrier(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+    VkBufferImageCopy region{};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {uint32_t(w), uint32_t(h), 1};
+    vkCmdCopyBufferToImage(cmd, t.staging, t.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    barrier(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO}; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
+    vkQueueSubmit(queue_, 1, &si, VK_NULL_HANDLE);
+    vkQueueWaitIdle(queue_);
+    vkFreeCommandBuffers(device_, cmdPool_, 1, &cmd);
 }
 
 IRenderer* createRendererVulkan() { return new VulkanRenderer(); }

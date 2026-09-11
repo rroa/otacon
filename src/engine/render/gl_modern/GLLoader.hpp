@@ -80,7 +80,9 @@ constexpr GLenum GL_TEXTURE0             = 0x84C0;
   X(void,   UseProgram,      (GLuint))                                          \
   X(void,   DeleteProgram,   (GLuint))                                          \
   X(GLint,  GetUniformLocation,(GLuint, const GLchar*))                         \
+  X(void,   Uniform1f,       (GLint, GLfloat))                                  \
   X(void,   Uniform2f,       (GLint, GLfloat, GLfloat))                         \
+  X(void,   Uniform4f,       (GLint, GLfloat, GLfloat, GLfloat, GLfloat))       \
   X(void,   GenVertexArrays, (GLsizei, GLuint*))                                \
   X(void,   BindVertexArray, (GLuint))                                          \
   X(void,   DeleteVertexArrays,(GLsizei, const GLuint*))                        \
@@ -97,6 +99,7 @@ constexpr GLenum GL_TEXTURE0             = 0x84C0;
   X(void,   DeleteTextures,  (GLsizei, const GLuint*))                          \
   X(void,   TexParameteri,   (GLenum, GLenum, GLint))                           \
   X(void,   TexImage2D,      (GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void*)) \
+  X(void,   TexSubImage2D,   (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const void*)) \
   X(void,   ReadPixels,      (GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*))
 
 #define X(ret, name, args) using PFN_##name = ret (*) args; extern PFN_##name name;

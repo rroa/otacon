@@ -9,6 +9,7 @@
 #pragma once
 #include "render/RenderTypes.hpp"
 #include <cstddef>
+#include <cstdio>
 #include <vector>
 
 namespace otacon {
@@ -35,6 +36,46 @@ public:
     virtual TextureHandle createTexture(int w, int h, const std::uint8_t* rgba, bool repeat = false) = 0;
     virtual void          destroyTexture(TextureHandle t) = 0;
     TextureHandle createTexture(const struct Image& img, bool repeat = false);   // (IRenderer.cpp)
+
+    // Replace the pixels of an existing texture, which must keep the same w/h.
+    // This is the upload path for anything rasterized on the CPU each frame —
+    // software lighting, the shader playground's portable path, a heat map. It
+    // exists because re-creating a texture per frame would churn GPU objects.
+    virtual void updateTexture(TextureHandle t, int w, int h, const std::uint8_t* rgba) = 0;
+
+    // ---- Fragment effects (optional backend capability) --------------------
+    // A backend with a programmable stage can compile a user fragment shader
+    // that replaces the built-in textured shader for subsequent textured draws.
+    // The engine keeps ownership of the vertex stage so the logical->clip
+    // projection stays byte-identical across backends; only the fragment stage
+    // is yours. The contract an effect is compiled against:
+    //
+    //     in  vec2 vUV;          // 0..1 across the drawn quad
+    //     in  vec4 vTint;        // per-vertex tint
+    //     out vec4 oColor;
+    //     uniform sampler2D uTex;
+    //     uniform vec2  uResolution;   // logical size, set by the engine
+    //     uniform float uTime;         // seconds, set via setEffectTime()
+    //
+    // supportsShaders() is false wherever no programmable stage is reachable:
+    // GL legacy is fixed-function, and the Vulkan backend ships pre-built SPIR-V
+    // with no runtime compiler. Anything built on this MUST therefore also carry
+    // a CPU path, so no sample becomes backend-exclusive.
+    virtual bool supportsShaders() const { return false; }
+    // Compile `fragmentSrc`. Returns 0 on failure, writing the driver's log into
+    // `log` (which is what makes a live-editing playground usable).
+    virtual ShaderHandle createEffect(const char* fragmentSrc, char* log, std::size_t logSize) {
+        (void)fragmentSrc;
+        if (log && logSize) std::snprintf(log, logSize, "%s has no programmable stage", name());
+        return 0;
+    }
+    virtual void destroyEffect(ShaderHandle e) { (void)e; }
+    // Bind an effect for subsequent textured draws; 0 restores the built-in one.
+    virtual void useEffect(ShaderHandle e) { (void)e; }
+    virtual void setEffectUniform(const char* name_, float x, float y = 0, float z = 0, float w = 0) {
+        (void)name_; (void)x; (void)y; (void)z; (void)w;
+    }
+    virtual void setEffectTime(float seconds) { (void)seconds; }
 
     // Draw a sub-rectangle [u0,v0 .. u1,v1] of a texture into the logical-space
     // destination rect, multiplied by `tint`. UVs default to the whole image.
