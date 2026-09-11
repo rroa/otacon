@@ -1,7 +1,8 @@
 # Otacon — a didactic 2D game engine, three games, and fifteen samples
 
 A teaching project in C++17: a small, reusable, **in-house** 2D engine
-(**Otacon**) with three games built on top of it. Almost everything is written
+(**Otacon**), three games built on top of it, and fifteen samples that
+demonstrate the engine on its own. Almost everything is written
 from scratch — math (including a Q16.16 fixed-point scalar), n-D vectors, a
 memory manager, time management, a debug runtime, the OpenGL function loader,
 the PNG decoder *and* encoder, the CAF audio decoder, and the software mixer.
@@ -10,11 +11,17 @@ automatically by CMake.
 
 ```
 cmake -S . -B build          # first run fetches the window library automatically
-cmake --build build -j8
-./build/bin/canabalt         # or ./tools/run.sh (needed for the Vulkan backend on macOS)
+cmake --build build -j8      # builds the engine, all three games and the samples
+
+./build/bin/samples          # the engine samples — F1 for the list
+./build/bin/canabalt
 ./build/bin/dino
 ./build/bin/flappy
 ```
+
+On the **Vulkan** backend on macOS, launch through `tools/run.sh` instead so the
+loader and MoltenVK ICD are found — `./tools/run.sh samples`, `./tools/run.sh
+canabalt`, and so on. It is harmless on the OpenGL backends.
 
 ## The games
 
@@ -58,9 +65,19 @@ nothing else: a sample that needed a game's code would mean a seam had leaked.
 Every texture they use is generated in code, so there are no sample assets.
 
 ```
+cmake --build build --target samples -j8   # or just `cmake --build build -j8`
+
 ./build/bin/samples                 # F1 for the list, [ / ] to page
-./build/bin/samples --sample 5      # open one directly
+./build/bin/samples --sample 5      # open one directly, 1-based
+./tools/run.sh samples              # same, but sets the Vulkan loader vars first
+
+./build/bin/samples --sample 8 --capture shot.png --frames 120
+./build/bin/samples --sample 6 --record frames/ --frames 240
 ```
+
+`--capture` renders N deterministic frames with the dev UI hidden, saves a PNG
+and quits; `--record` writes every frame to a numbered PNG for assembling a
+video. Both are how the screenshots and the cross-backend comparison are made.
 
 | # | Sample | What it shows |
 |---|--------|---------------|
@@ -152,10 +169,11 @@ cmake --build build --target otacon_smoke -j8
 ./build/bin/otacon_smoke
 ```
 
-Each game and the samples accept `--capture <png> [--frames N]` to render N
-deterministic frames with the UI hidden and quit (`samples` also takes
-`--sample N`); `flappy` additionally accepts
-`--record <dir>` (a PNG sequence) and `--demo` (self-play, for recording).
+Each game and the samples accept `--capture <png> [--frames N]`: render N
+deterministic frames with the dev UI hidden, save a PNG, quit. `samples` also
+takes `--sample N` to pick the screen, and both `samples` and `flappy` accept
+`--record <dir>` to write every frame as a numbered PNG. `flappy` additionally
+has `--demo`, which self-plays the newest build.
 
 ## Documentation
 
