@@ -29,6 +29,7 @@ Sample* makeRayShapes();
 Sample* makeBroadPhase();
 Sample* makeEventsStates();
 Sample* makeSpriteAtlas();
+Sample* makeIsoGrid();
 
 namespace {
 const SampleInfo kSamples[] = {
@@ -52,6 +53,7 @@ const SampleInfo kSamples[] = {
     {"Broad Phase",        "same answer, far fewer pair tests",                    makeBroadPhase},
     {"Events & States",    "nothing here holds a pointer to anything else",        makeEventsStates},
     {"Sprite Atlas",       "one texture, many sprites, one bind",                  makeSpriteAtlas},
+    {"Isometric Grid",     "three spaces, one point, and the sort that joins them", makeIsoGrid},
 };
 } // namespace
 

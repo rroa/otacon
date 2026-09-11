@@ -21,6 +21,7 @@
 #include "scene/SpatialGrid.hpp"
 #include "scene/Raycast.hpp"
 #include "scene/Shapes.hpp"
+#include "scene/Iso.hpp"
 #include "scene/StateMachine.hpp"
 #include "core/Timer.hpp"
 #include "core/Tween.hpp"
@@ -710,6 +711,85 @@ static void testSaveData() {
     std::remove(path);
 }
 
+
+// Isometric coordinates. A picking bug and a rendering bug look identical on
+// screen, so the round-trip is asserted rather than eyeballed: if toWorld and
+// toScreen disagree you know instantly which half is at fault.
+static void testIso() {
+    const IsoGrid g{64.f, 32.f, 16.f};
+
+    // The projection, by hand, at the three points that define it.
+    check(std::fabs(g.toScreen(0.f, 0.f).x) < 1e-4f &&
+          std::fabs(g.toScreen(0.f, 0.f).y) < 1e-4f, "iso: origin maps to the origin");
+    // +x walks down-RIGHT; +y walks down-LEFT; both go down the screen.
+    const Vec2f px = g.toScreen(1.f, 0.f);
+    const Vec2f py = g.toScreen(0.f, 1.f);
+    check(px.x > 0.f && px.y > 0.f, "iso: +x goes down-right");
+    check(py.x < 0.f && py.y > 0.f, "iso: +y goes down-left");
+    check(std::fabs(px.y - py.y) < 1e-4f, "iso: both axes descend equally");
+    // (1,1) is straight below the origin: the x and y offsets cancel.
+    check(std::fabs(g.toScreen(1.f, 1.f).x) < 1e-4f, "iso: (1,1) sits directly below (0,0)");
+
+    // Round-trip, including negative and fractional coordinates -- the quadrant
+    // where a truncate-instead-of-floor bug hides.
+    bool trip = true;
+    for (float wy = -3.5f; wy <= 3.5f; wy += 0.75f)
+        for (float wx = -3.5f; wx <= 3.5f; wx += 0.75f) {
+            const Vec2f back = g.toWorld(g.toScreen(wx, wy));
+            if (std::fabs(back.x - wx) > 1e-3f || std::fabs(back.y - wy) > 1e-3f) trip = false;
+        }
+    check(trip, "iso: toScreen/toWorld round-trip exactly");
+
+    // Elevation lifts straight up and is recoverable when you know the height.
+    const Vec2f flat = g.toScreen(2.f, 2.f, 0.f);
+    const Vec2f high = g.toScreen(2.f, 2.f, 3.f);
+    check(std::fabs(high.x - flat.x) < 1e-4f, "iso: elevation does not move a tile sideways");
+    check(high.y < flat.y, "iso: elevation lifts up the screen");
+    const Vec2f backHigh = g.toWorld(high, 3.f);
+    check(std::fabs(backHigh.x - 2.f) < 1e-3f && std::fabs(backHigh.y - 2.f) < 1e-3f,
+          "iso: round-trip holds with elevation");
+
+    // Flooring, not truncation: the negative quadrant is where that differs.
+    int tx = 0, ty = 0;
+    IsoGrid::toTile({-0.5f, -0.5f}, tx, ty);
+    check(tx == -1 && ty == -1, "iso: negative coords floor, not truncate");
+    IsoGrid::toTile({2.9f, 0.1f}, tx, ty);
+    check(tx == 2 && ty == 0, "iso: positive coords floor");
+
+    // Depth: (wx + wy), with elevation deliberately excluded.
+    check(IsoGrid::depth(2.f, 3.f) > IsoGrid::depth(1.f, 1.f), "iso: nearer tiles sort later");
+    check(std::fabs(IsoGrid::depth(3.f, 1.f) - IsoGrid::depth(1.f, 3.f)) < 1e-4f,
+          "iso: tiles on one diagonal share a depth");
+    // A 3x3 building at (10,10) must sort by its far corner (12,12), or a unit
+    // standing visually in front of it draws behind the whole thing.
+    check(IsoGrid::footprintDepth(10.f, 10.f, 3, 3) > IsoGrid::depth(11.f, 11.f),
+          "iso: a multi-tile building sorts by its far corner");
+
+    // The rhombus test must reject the corners of the bounding box, which belong
+    // to the four neighbouring tiles.
+    const Vec2f centre = g.toScreen(5.5f, 5.5f, 0.f);
+    check(g.containsPoint(5.f, 5.f, 0.f, centre), "iso: the tile centre is inside its diamond");
+    check(!g.containsPoint(5.f, 5.f, 0.f, {centre.x + g.halfW() - 1.f, centre.y + g.halfH() - 1.f}),
+          "iso: a bounding-box corner is NOT inside the diamond");
+    // Every screen point picks the tile the inverse says it should.
+    bool picks = true;
+    for (float wy = 0.25f; wy < 4.f; wy += 0.5f)
+        for (float wx = 0.25f; wx < 4.f; wx += 0.5f) {
+            const Vec2f sp = g.toScreen(wx, wy);
+            int px2 = 0, py2 = 0;
+            g.screenToTile(sp, px2, py2);
+            if (px2 != int(std::floor(wx)) || py2 != int(std::floor(wy))) picks = false;
+        }
+    check(picks, "iso: screen picking agrees with the projection");
+
+    // Culling must cover the view and not much more.
+    int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    g.visibleTileRange({-320.f, -200.f}, {320.f, 200.f}, 0.f, x0, y0, x1, y1);
+    check(x0 < 0 && y0 < 0 && x1 > 0 && y1 > 0, "iso: the visible range brackets the view");
+    const int span = (x1 - x0) * (y1 - y0);
+    check(span > 0 && span < 4000, "iso: the visible range stays bounded");
+}
+
 int main() {
     // Unbuffered: if a check crashes the process, a fully-buffered stdout would
     // discard every line printed up to that point and the log would be empty --
@@ -727,6 +807,7 @@ int main() {
     testFlock();
     testAnimator();
     testRaycast();
+    testIso();
     testShapes();
     testCollisionLayers();
     testTimers();

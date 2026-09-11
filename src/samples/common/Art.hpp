@@ -33,6 +33,19 @@ otacon::Image heroSheet(int& frameW, int& frameH, int& frameCount);
 // A 16x16 tile strip: 0 grass, 1 dirt, 2 stone, 3 water, 4 sand, 5 brick.
 otacon::Image tileset(int& tileSize, int& tileCount);
 
+// An isometric tile: a diamond top face plus the two side faces that give it
+// depth, drawn into a sprite `tileW` x (tileH/2 + sideH). Prototype art in the
+// Kenney sense -- flat, unambiguous, and deliberately plain, because a depth-sort
+// or picking bug is invisible against pretty art and obvious against this.
+//
+// `shade` tints the whole tile; the side faces are darkened from it so the
+// three planes read apart without needing three colours specified.
+otacon::Image isoTile(int tileW, int tileH, int sideH, std::uint32_t topRgb);
+
+// A marker that stands ON a tile rather than being one: a simple upright post,
+// for units and for anything that has to sort against buildings.
+otacon::Image isoMarker(int w, int h, std::uint32_t rgb);
+
 // A soft radial dot, used wherever particles want to be round rather than square.
 otacon::Image dot(int size);
 

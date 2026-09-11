@@ -166,6 +166,87 @@ Image tileset(int& tileSize, int& tileCount) {
     return img;
 }
 
+/*
+==================
+isoTile
+
+The diamond is rasterised from its own definition rather than blitted from a
+mask: for each row, the half-width of the diamond at that height is a linear
+ramp, so the span is exact and the edges land where IsoGrid says they do. A
+hand-drawn tile that is one pixel off would make picking disagree with rendering
+everywhere, which is the hardest iso bug to find.
+==================
+*/
+Image isoTile(int tileW, int tileH, int sideH, std::uint32_t topRgb) {
+    Image img;
+    img.width = tileW;
+    img.height = tileH + sideH;
+    img.rgba.assign(std::size_t(img.width) * img.height * 4, 0);
+
+    auto rgb = [](std::uint32_t c, float k, float& r, float& g, float& b) {
+        r = float((c >> 16) & 0xFF) / 255.f * k;
+        g = float((c >> 8) & 0xFF) / 255.f * k;
+        b = float(c & 0xFF) / 255.f * k;
+    };
+    const float halfW = float(tileW) * 0.5f, halfH = float(tileH) * 0.5f;
+
+    // The two side faces first, so the top face overwrites their upper edge.
+    for (int y = 0; y < tileH + sideH; ++y) {
+        for (int x = 0; x < tileW; ++x) {
+            const float dx = (float(x) + 0.5f) - halfW;
+            // The diamond's lower edge at this column, pushed down by sideH.
+            const float edge = halfH + (1.f - std::fabs(dx) / halfW) * halfH;
+            if (float(y) + 0.5f <= edge || float(y) + 0.5f > edge + float(sideH)) continue;
+            float r, g, b;
+            // Left face darker than right: one light direction, consistently.
+            rgb(topRgb, dx < 0.f ? 0.55f : 0.72f, r, g, b);
+            putRGB(img, x, y, r, g, b, 1.f);
+        }
+    }
+    // The top face: |dx|/halfW + |dy|/halfH <= 1, the same rhombus test picking
+    // uses, so the sprite and the hit test cannot disagree.
+    for (int y = 0; y < tileH; ++y) {
+        for (int x = 0; x < tileW; ++x) {
+            const float dx = std::fabs((float(x) + 0.5f) - halfW) / halfW;
+            const float dy = std::fabs((float(y) + 0.5f) - halfH) / halfH;
+            if (dx + dy > 1.f) continue;
+            float r, g, b;
+            rgb(topRgb, 1.f, r, g, b);
+            // A faint rim so adjacent tiles of one colour still read as a grid.
+            const float rim = (dx + dy > 0.88f) ? 0.82f : 1.f;
+            putRGB(img, x, y, r * rim, g * rim, b * rim, 1.f);
+        }
+    }
+    return img;
+}
+
+/*
+==================
+isoMarker
+
+An upright post with a darker base, so a unit has an obvious ground contact
+point. The contact point is what sorting and picking both key off, and a sprite
+without one makes every depth question ambiguous.
+==================
+*/
+Image isoMarker(int w, int h, std::uint32_t rgbHex) {
+    Image img;
+    img.width = w; img.height = h;
+    img.rgba.assign(std::size_t(w) * h * 4, 0);
+    const float r0 = float((rgbHex >> 16) & 0xFF) / 255.f;
+    const float g0 = float((rgbHex >> 8) & 0xFF) / 255.f;
+    const float b0 = float(rgbHex & 0xFF) / 255.f;
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const int inset = (y < h / 6) ? w / 4 : w / 5;      // a rounded-ish cap
+            if (x < inset || x >= w - inset) continue;
+            const float k = (y > h - h / 5) ? 0.5f : (0.75f + 0.25f * (1.f - float(y) / float(h)));
+            putRGB(img, x, y, r0 * k, g0 * k, b0 * k, 1.f);
+        }
+    }
+    return img;
+}
+
 Image dot(int size) {
     Image img;
     img.width = size; img.height = size;
